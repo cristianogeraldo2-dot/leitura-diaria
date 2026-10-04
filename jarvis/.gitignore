@@ -36,6 +36,8 @@ memory/*
 knowledge/*
 !knowledge/.gitkeep
 !knowledge/operacao.exemplo.json
+!knowledge/operacao.template.json
+!knowledge/DADOS-NECESSARIOS.md
 logs/*
 !logs/.gitkeep
 config/*

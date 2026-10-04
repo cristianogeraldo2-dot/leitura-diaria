@@ -23,6 +23,10 @@ export function loadOperation() {
 export function operationInsight() {
   const d = loadOperation()
   if (!d) return { available: false, reason: NO_DATA, hint: 'Crie knowledge/operacao.json (modelo: knowledge/operacao.exemplo.json).' }
+  // Arquivo de exemplo copiado sem edição: recusa em vez de analisar números fictícios.
+  if (d._aviso || /^(1999|2000)-/.test(String(d.data ?? ''))) {
+    return { available: false, reason: NO_DATA, hint: 'operacao.json ainda contém o EXEMPLO fictício. Substitua por números reais (ver knowledge/DADOS-NECESSARIOS.md).' }
+  }
   return analyze(d)
 }
 

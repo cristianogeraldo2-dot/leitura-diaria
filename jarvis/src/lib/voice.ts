@@ -78,7 +78,7 @@ const WAKE_DEBOUNCE = 1500
  * indication why. Better a rare false wake than a name that does not answer.
  */
 const WAKE =
-  /\b(?:hey|hei|hi|ei|oi|ok|okay|yo|e\s+a[ií])?\s*(?:jarvis|j[aá]rvis|jarvys|jervis|jarvis's|travis|jarviss|java's|jarvas|jarves|g[aá]rvis|jarv)\b(?!'s)/i
+  /\b(?:hey|hei|hi|ei|oi|ok|okay|yo|e\s+a[ií])?\s*(?:jarvis|j[aá]rvis|jarvys|jervis|travis|jarviss|java's|jarvas|jarves|g[aá]rvis|jarv)\b(?!'s)/i
 
 /** Everything after the wake phrase, which is usually the actual command. */
 function afterWake(text: string): string {

@@ -1,0 +1,8 @@
+{
+  "data": null,
+  "progressoDia": null,
+  "meta": { "casais": null, "vendas": null, "vgv": null, "cotas": null },
+  "realizado": { "casais": null, "q": null, "nq": null, "vendas": null, "cotas": null, "vgv": null },
+  "historico": [],
+  "captadores": []
+}

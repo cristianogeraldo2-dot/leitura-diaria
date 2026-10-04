@@ -61,6 +61,12 @@ writeFileSync(fx, '<html><head><link href="x.css" rel="stylesheet"><script src="
 const insp = inspectDashboard(fx)
 t('inspeção acha Chart.js, canvas, função e API', insp.chartLibraries.includes('Chart.js') && insp.htmlTags.canvas === 1 && insp.js.functions.includes('render') && insp.apis.length === 1)
 rmSync(tmp, { recursive: true, force: true })
+const { operationInsight, DATA_FILE } = await import('../bridge/ops.mjs')
+if (!existsSync(DATA_FILE)) {
+  writeFileSync(DATA_FILE, readFileSync(join(ROOT, 'knowledge/operacao.exemplo.json')))
+  const g = operationInsight(); rmSync(DATA_FILE)
+  t('operacao.json com dados de EXEMPLO é recusado', g.available === false && /EXEMPLO/.test(g.hint))
+} else sk('guarda de dados fictícios', 'operacao.json real presente')
 
 // ---- integração: bridge ------------------------------------------------------
 console.log('\n[bridge]')
