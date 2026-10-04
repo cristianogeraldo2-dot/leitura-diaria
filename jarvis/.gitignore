@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Copied out of node_modules by scripts/start.mjs — 34MB of build output.
+public/mediapipe/
+
+# Private keys for the Windows launchers. Copy jarvis-secrets.example.cmd to this name.
+jarvis-secrets.cmd
+.jarvis-probe.mjs
+
+# --- JARVIS pessoal: estado local, dados da operação e segredos nunca vão para o Git
+memory/*
+!memory/.gitkeep
+knowledge/*
+!knowledge/.gitkeep
+!knowledge/operacao.exemplo.json
+logs/*
+!logs/.gitkeep
+config/*
+!config/.gitkeep
+backups/*
+!backups/.gitkeep
+.env
+.env.*
+!.env.example
+jarvis-secrets.cmd
+*.pem
+*.key

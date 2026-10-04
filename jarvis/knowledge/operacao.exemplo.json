@@ -1,0 +1,16 @@
+{
+  "_aviso": "EXEMPLO FICTÍCIO apenas para teste. Copie para operacao.json e preencha com números REAIS da Vila Dia.",
+  "data": "2000-01-01",
+  "progressoDia": 0.6,
+  "meta": { "casais": 40, "vendas": 4, "vgv": 400000, "cotas": 8 },
+  "realizado": { "casais": 20, "q": 9, "nq": 11, "vendas": 2, "cotas": 3, "vgv": 150000 },
+  "historico": [
+    { "data": "1999-12-30", "casais": 38, "q": 16, "vendas": 4 },
+    { "data": "1999-12-31", "casais": 35, "q": 14, "vendas": 3 }
+  ],
+  "captadores": [
+    { "nome": "Captador A", "casais": 4, "q": 2, "nq": 2, "vendas": 1, "vgv": 80000 },
+    { "nome": "Captador B", "casais": 1, "q": 0, "nq": 1, "vendas": 0, "vgv": 0 },
+    { "nome": "Captador C", "casais": 2, "q": 1, "nq": 1, "vendas": 0, "vgv": 0 }
+  ]
+}
