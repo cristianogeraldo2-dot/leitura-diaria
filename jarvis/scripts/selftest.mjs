@@ -45,6 +45,7 @@ t('derivados explícitos (NQ e Q com venda)', opFx.realizado.nq === 12 && opFx.r
 t('não inventa o que o dashboard não traz', opFx.captadores.length === 0 && opFx.meta.casais === null && opFx.progressoDia === null)
 const anFx = analyze(opFx)
 t('análise do snapshot: atingimento cotas/VGV e conversão Q', anFx.dados.atingimentoCotas === 50 && anFx.dados.atingimentoVgv === 50 && anFx.dados.conversao === 25)
+t('dados antigos geram aviso de defasagem', anFx.idadeDias > 1000 && /DEFASADOS/.test(anFx.avisos[0]))
 t('avisa que não há dados por captador e cita a data', anFx.avisos.some((x) => /captador/.test(x)) && anFx.avisos.some((x) => /2000-01-01/.test(x)))
 
 // ---- unidade: persona/modos/confirmação -------------------------------------

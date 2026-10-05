@@ -118,9 +118,15 @@ export function analyze(data) {
     : null
 
   const avisos = []
-  if (data.geradoEm) avisos.push(`Dados do dashboard gerados em ${data.geradoEm}.`)
+  let idadeDias = null
+  if (data.geradoEm) {
+    const t = Date.parse(data.geradoEm)
+    if (Number.isFinite(t)) idadeDias = Math.floor((Date.now() - t) / 86_400_000)
+    avisos.push(`Dados do dashboard gerados em ${data.geradoEm}${idadeDias !== null ? ` (há ${idadeDias} dia${idadeDias === 1 ? '' : 's'})` : ''}.`)
+    if (idadeDias !== null && idadeDias >= 2) avisos.unshift(`ATENÇÃO: dados DEFASADOS — têm ${idadeDias} dias. Não representam o dia de hoje.`)
+  }
   if (!caps.length) avisos.push('Não tenho dados por captador (ranking e produtividade individual indisponíveis).')
   if (prog === null) avisos.push('Progresso do dia não informado: alertas de ritmo não avaliados.')
   if (Array.isArray(data.derivados) && data.derivados.length) avisos.push(`Valores derivados (calculados): ${data.derivados.join(', ')}.`)
-  return { available: true, fonte: data.fonte ?? 'manual', geradoEm: data.geradoEm ?? null, avisos, dados, ritmo, equipe, gargalo, alertas: alerts, historicoDias: hist.length }
+  return { available: true, fonte: data.fonte ?? 'manual', geradoEm: data.geradoEm ?? null, idadeDias, avisos, dados, ritmo, equipe, gargalo, alertas: alerts, historicoDias: hist.length }
 }
