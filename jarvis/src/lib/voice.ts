@@ -803,7 +803,7 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
         emptyStarts++
         if (emptyStarts === 4) {
           h.onError(
-            'O navegador inicia o reconhecimento de voz, mas ele termina sem receber áudio. Causas comuns: serviço de voz bloqueado (rede ou política da empresa), outro app usando o microfone, ou outra aba do JARVIS aberta. Tente o Microsoft Edge e tecle D para ver o diagnóstico.',
+            'O reconhecimento de voz é cortado assim que inicia. Causa mais comum: outra aba ou janela do JARVIS aberta, ou outro app/aba usando o microfone (Teams, Meet, Zoom) ou uma extensão com voz. Feche as outras abas e recarregue (F5). Se persistir, pode ser bloqueio do serviço de voz (rede/política): tente o Microsoft Edge. Tecle D para o diagnóstico.',
           )
         }
       }
