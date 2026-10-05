@@ -31,6 +31,22 @@ t('campos ausentes viram null (nunca inventa)', sem.dados.conversao === null && 
 const noPace = analyze({ meta: { casais: 40 }, realizado: { casais: 10 } })
 t('sem progressoDia não há alerta de ritmo', !noPace.alertas.some((x) => x.code.startsWith('META_')))
 
+// ---- unidade: importador do snapshot do dashboard (dados FICTÍCIOS, só em memória) ----
+const { snapshotToOperacao } = await import('../bridge/dashboard-data.mjs')
+const snapFx = { generatedAt: '2000-01-01T10:00:00Z', status: 'ok', buildStatus: 'built', queries: {
+  daily_metrics: { rows: [{ metric: 'abc', actual: 1, target: 2, attainment: 50, gap: 1, unit: 'un' }] },
+  casais_detail: { rows: [{ presencas: 20, qsRealizados: 8, nqsComPropostas: 2, nqsComVendas: 1, qMaisNqComProposta: 6, qMaisNqComVenda: 3, anoAnterior: 15, mesAnterior: 18 }] },
+  cotas_detail: { rows: [{ propostas: 5, compradoresPropostas: 4, cotasVendidas: 3, metaCotas: 6, anoAnterior: 2, mesAnterior: 4, superMeta: 8, megaMeta: 10, metaEsparta: 12 }] },
+  vgv_detail: { rows: [{ propostasVgv: 100, vendasVgv: 60, metaVgv: 120, eficienciaGeralPropostas: 1, eficienciaPropostas: 1, eficienciaMeta: 1, eficienciaAnoAnterior: 1, eficienciaMesAnterior: 1 }] } } }
+const opFx = snapshotToOperacao(snapFx)
+console.log('\n[dashboard → operacao.json]')
+t('mapeia casais/Q/vendas/cotas/VGV', opFx.realizado.casais === 20 && opFx.realizado.q === 8 && opFx.realizado.vendas === 3 && opFx.realizado.cotas === 3 && opFx.realizado.vgv === 60)
+t('derivados explícitos (NQ e Q com venda)', opFx.realizado.nq === 12 && opFx.realizado.qComVenda === 2 && opFx.derivados.length === 2)
+t('não inventa o que o dashboard não traz', opFx.captadores.length === 0 && opFx.meta.casais === null && opFx.progressoDia === null)
+const anFx = analyze(opFx)
+t('análise do snapshot: atingimento cotas/VGV e conversão Q', anFx.dados.atingimentoCotas === 50 && anFx.dados.atingimentoVgv === 50 && anFx.dados.conversao === 25)
+t('avisa que não há dados por captador e cita a data', anFx.avisos.some((x) => /captador/.test(x)) && anFx.avisos.some((x) => /2000-01-01/.test(x)))
+
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')
 const P = await import('../bridge/persona.mjs')

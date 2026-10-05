@@ -38,27 +38,43 @@ export function analyze(data) {
     vgv: num(r.vgv),
     meta: { casais: num(m.casais), vendas: num(m.vendas), vgv: num(m.vgv), cotas: num(m.cotas) },
     taxaQ: pct(div(r.q, r.casais)),
-    conversao: pct(div(r.vendas, r.q)),
+    // conversão = vendas de casais Q ÷ Q (quando o dashboard separa Q de NQ), senão vendas ÷ Q
+    conversao: pct(div(num(r.qComVenda) !== null ? r.qComVenda : r.vendas, r.q)),
+    conversaoGeral: pct(div(r.vendas, r.casais)), // casais com venda ÷ casais presentes
     gap: {
       casais: num(m.casais) !== null && num(r.casais) !== null ? m.casais - r.casais : null,
       vendas: num(m.vendas) !== null && num(r.vendas) !== null ? m.vendas - r.vendas : null,
       vgv: num(m.vgv) !== null && num(r.vgv) !== null ? m.vgv - r.vgv : null,
+      cotas: num(m.cotas) !== null && num(r.cotas) !== null ? m.cotas - r.cotas : null,
     },
     atingimentoCasais: pct(div(r.casais, m.casais)),
+    atingimentoVgv: pct(div(r.vgv, m.vgv)),
+    atingimentoCotas: pct(div(r.cotas, m.cotas)),
+    atingimentoMetasEscalonadas: Object.fromEntries(
+      Object.entries(data.metasEscalonadas ?? {}).map(([k, v]) => [k, pct(div(r.cotas, v))]),
+    ),
+    propostas: num(r.propostas),
+    compradores: num(r.compradores),
+    comparativos: data.comparativos ?? null,
+    metricasDiarias: Array.isArray(data.metricasDiarias) ? data.metricasDiarias : [],
   }
 
   // Ritmo: só avaliado se o progresso do dia foi informado.
   const prog = num(data.progressoDia)
   let ritmo = null
-  if (prog !== null && prog > 0 && dados.atingimentoCasais !== null) {
-    ritmo = Math.round((dados.atingimentoCasais / 100 / prog) * 1000) / 1000 // 1.0 = exatamente no ritmo
-    if (ritmo < 0.9) alerts.push({ code: 'META_ABAIXO_DO_RITMO', label: ALERT.BELOW_PACE, why: `Atingimento de casais em ${dados.atingimentoCasais}% com ${pct(prog)}% do dia decorrido.` })
-    else if (ritmo >= 0.95) alerts.push({ code: 'META_NO_RITMO', label: ALERT.ON_PACE, why: `Atingimento de casais em ${dados.atingimentoCasais}% com ${pct(prog)}% do dia decorrido.` })
-    if (ritmo < 0.9 && prog < 1 && dados.gap.casais > 0) {
-      const needed = dados.gap.casais / (1 - prog)
-      const current = r.casais / prog
+  const base = [['casais', dados.atingimentoCasais], ['VGV', dados.atingimentoVgv], ['cotas', dados.atingimentoCotas]].find(([, v]) => v !== null)
+  if (prog !== null && prog > 0 && base) {
+    const [bn, bv] = base
+    ritmo = Math.round((bv / 100 / prog) * 1000) / 1000 // 1.0 = exatamente no ritmo
+    if (ritmo < 0.9) alerts.push({ code: 'META_ABAIXO_DO_RITMO', label: ALERT.BELOW_PACE, why: `Atingimento de ${bn} em ${bv}% com ${pct(prog)}% do dia decorrido.` })
+    else if (ritmo >= 0.95) alerts.push({ code: 'META_NO_RITMO', label: ALERT.ON_PACE, why: `Atingimento de ${bn} em ${bv}% com ${pct(prog)}% do dia decorrido.` })
+    const gapBase = bn === 'casais' ? dados.gap.casais : bn === 'VGV' ? dados.gap.vgv : dados.gap.cotas
+    const realBase = bn === 'casais' ? r.casais : bn === 'VGV' ? r.vgv : r.cotas
+    if (ritmo < 0.9 && prog < 1 && gapBase > 0) {
+      const needed = gapBase / (1 - prog)
+      const current = realBase / prog
       if (current > 0 && needed / current <= 1.5)
-        alerts.push({ code: 'OPORTUNIDADE_RECUPERACAO', label: ALERT.RECOVERY, why: `Faltam ${dados.gap.casais} casais; exige ${Math.round((needed / current) * 100)}% do ritmo atual no restante do dia.` })
+        alerts.push({ code: 'OPORTUNIDADE_RECUPERACAO', label: ALERT.RECOVERY, why: `Faltam ${gapBase} (${bn}); exige ${Math.round((needed / current) * 100)}% do ritmo atual no restante do dia.` })
     }
   }
 
@@ -101,5 +117,10 @@ export function analyze(data) {
     ? (f.casaisParaQ < f.qParaVenda ? 'qualificação (casal → Q)' : 'fechamento (Q → venda)')
     : null
 
-  return { available: true, dados, ritmo, equipe, gargalo, alertas: alerts, historicoDias: hist.length }
+  const avisos = []
+  if (data.geradoEm) avisos.push(`Dados do dashboard gerados em ${data.geradoEm}.`)
+  if (!caps.length) avisos.push('Não tenho dados por captador (ranking e produtividade individual indisponíveis).')
+  if (prog === null) avisos.push('Progresso do dia não informado: alertas de ritmo não avaliados.')
+  if (Array.isArray(data.derivados) && data.derivados.length) avisos.push(`Valores derivados (calculados): ${data.derivados.join(', ')}.`)
+  return { available: true, fonte: data.fonte ?? 'manual', geradoEm: data.geradoEm ?? null, avisos, dados, ritmo, equipe, gargalo, alertas: alerts, historicoDias: hist.length }
 }
