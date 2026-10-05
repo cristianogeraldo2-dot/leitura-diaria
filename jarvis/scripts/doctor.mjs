@@ -44,7 +44,7 @@ ok('Launchers', 'execução real do .cmd', 'warn', 'só no Windows — rode STAR
 
 // Voz / wake word (estático: regex e idioma)
 const voice = rd('src/lib/voice.ts')
-const m = /const WAKE =\s*\/(.+)\/i\n/.exec(voice)
+const m = /const WAKE =\s*\/(.+)\/i\r?\n/.exec(voice) // aceita CRLF (arquivos no Windows)
 const WAKE = m ? new RegExp(m[1], 'i') : null
 ok('Voz', 'regex da wake word encontrada', Boolean(WAKE))
 if (WAKE) {
