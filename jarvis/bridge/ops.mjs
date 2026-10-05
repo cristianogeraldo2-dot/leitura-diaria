@@ -77,7 +77,7 @@ export function inspectDashboard(file) {
   }
 }
 
-function probePort(port, host = '127.0.0.1', ms = 800) {
+function probeOne(port, host, ms) {
   return new Promise((res) => {
     const s = createConnection({ port, host })
     const done = (v) => { s.destroy(); res(v) }
@@ -85,6 +85,11 @@ function probePort(port, host = '127.0.0.1', ms = 800) {
     s.on('connect', () => done(true))
     s.on('error', () => done(false))
   })
+}
+// Vite no Windows costuma escutar só em [::1]; testa IPv4 e IPv6.
+async function probePort(port, ms = 1500) {
+  for (const host of ['127.0.0.1', '::1']) if (await probeOne(port, host, ms)) return true
+  return false
 }
 
 function mcpFromClaudeConfig() {
@@ -127,11 +132,11 @@ export async function diagnostics(extra = {}) {
   const mcp = mcpFromClaudeConfig()
   const out = {
     bridge: { ok: true, port: bridgePort, pid: process.pid, uptimeSeg: Math.round(process.uptime()) },
-    frontend: { ok: await probePort(5173) || await probePort(4173), note: 'servidor Vite local em 5173 (ou preview 4173)' },
+    frontend: { ok: (await probePort(5173)) || (await probePort(4173)), note: 'servidor Vite local em 5173 (ou preview 4173)' },
     claudeCode: await claudeStatus(),
     voz: { note: 'Verificado no navegador: pressione D (painel) ou T (autoteste). O bridge não enxerga o microfone.', engine: extra.voice ?? 'navegador (speechSynthesis)' },
     mcp: { ok: mcp.length > 0, servidoresNoClaudeJson: mcp, chromeDevtools: mcp.includes('chrome-devtools') },
-    portas: { 8787: await probePort(bridgePort), 5173: await probePort(5173) },
+    portas: { 8787: await probePort(bridgePort), 5173: await probePort(5173), 4173: await probePort(4173) },
     dashboard: { ok: Boolean(dash), caminho: dash, backups: existsSync(DIRS.backups) ? readdirSync(DIRS.backups).filter((f) => f.endsWith('.bak')).length : 0 },
     dadosOperacao: { ok: Boolean(op), arquivo: 'knowledge/operacao.json' },
     memoria: { ok: Object.values(DIRS).every(existsSync), modo: getMode(), escritaLiberada: process.env.JARVIS_ALLOW_WRITES === '1', confirmacaoPorVoz: true },

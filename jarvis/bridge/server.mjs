@@ -737,15 +737,15 @@ const handleRequest = async (req, res) => {
 
   // ---- Operação Vila Dia / dashboard (somente leitura, same-origin) -------
   if (req.method === 'GET' && req.url === '/jarvis/status') {
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(await statusSummary()))
   }
   if (req.method === 'GET' && req.url === '/jarvis/insight') {
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(operationInsight()))
   }
   if (req.method === 'GET' && req.url === '/jarvis/diagnostics') {
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(await diagnostics()))
   }
   if (req.method === 'GET' && req.url === '/jarvis-widget.js') {
@@ -773,7 +773,7 @@ const handleRequest = async (req, res) => {
     // without one it falls back to the browser's own recogniser and voice, so a
     // student with nothing configured still has a working assistant.
     const eleven = Boolean(elevenKey())
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify({ ok: true, tts: eleven, stt: eleven }))
   }
 
@@ -1010,7 +1010,7 @@ const handleRequest = async (req, res) => {
     // Silence, or a click. Nothing to transcribe, and calling out to the API
     // for it would only add latency to a non-answer.
     if (size < 1200) {
-      res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+      res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
       return res.end(JSON.stringify({ text: '' }))
     }
 
@@ -1044,7 +1044,7 @@ const handleRequest = async (req, res) => {
         return res.end(await upstream.text())
       }
       const data = await upstream.json()
-      res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+      res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
       return res.end(JSON.stringify({ text: (data.text ?? '').trim() }))
     } catch (err) {
       res.writeHead(502, cors)
