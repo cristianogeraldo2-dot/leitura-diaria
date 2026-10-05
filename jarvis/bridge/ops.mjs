@@ -59,8 +59,9 @@ export function backupDashboard(file) {
 export function inspectDashboard(file) {
   const html = readFileSync(file, 'utf8')
   const uniq = (a) => [...new Set(a)]
-  const scriptSrc = uniq([...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]))
-  const linkHref = uniq([...html.matchAll(/<link[^>]+href=["']([^"']+)["']/gi)].map((m) => m[1]))
+  const short = (u) => (u.length > 160 ? `${u.slice(0, 40)}… (${u.length} caracteres)` : u)
+  const scriptSrc = uniq([...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => short(m[1])))
+  const linkHref = uniq([...html.matchAll(/<link[^>]+href=["']([^"']+)["']/gi)].map((m) => short(m[1])))
   const inline = [...html.matchAll(/<script(?![^>]+src)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1])
   const js = inline.join('\n')
   const libs = [['Chart.js', /chart(\.umd)?(\.min)?\.js|new Chart\(/i], ['Plotly', /plotly/i], ['ApexCharts', /apexcharts/i], ['ECharts', /echarts/i], ['D3', /d3(\.min)?\.js|d3\./i], ['Google Charts', /gstatic\.com\/charts/i], ['Supabase', /supabase/i], ['Firebase', /firebase/i]]

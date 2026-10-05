@@ -21,7 +21,8 @@
     "test:live": "node scripts/selftest.mjs --live",
     "setup:mcp": "node scripts/setup-mcp.mjs",
     "doctor": "node scripts/doctor.mjs",
-    "inspect:dashboard": "node scripts/inspect-dashboard.mjs"
+    "inspect:dashboard": "node scripts/inspect-dashboard.mjs",
+    "dashboard:schema": "node scripts/dashboard-snapshot.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",
