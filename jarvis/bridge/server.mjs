@@ -1343,6 +1343,11 @@ wss.on('connection', (socket) => {
       // Normally your own `/model` preference would decide, but that lives in
       // the settings files `settingSources: []` deliberately stops loading, so
       // without this line nothing in the project has a say at all.
+      // Só os servidores passados em mcpServers acima. Sem isto o Claude Code também carrega
+      // os conectores da conta claude.ai (Gmail, Drive, Microsoft 365, Zapier, Supabase…) e os
+      // plugins — acesso que um assistente de voz não deve ter por padrão. Conectar algum deles
+      // exige uma decisão consciente, não um efeito colateral do login.
+      strictMcpConfig: true,
       model: MODEL,
       effort: EFFORT,
       maxTurns: 24,
