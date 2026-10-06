@@ -5,6 +5,8 @@
 // Faz backup do operacao.json anterior. Não imprime valores de negócio.
 import { existsSync, copyFileSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { homedir } from 'node:os'
+import { readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { DATA_FILE } from '../bridge/ops.mjs'
 import { DIRS } from '../bridge/home.mjs'
@@ -21,8 +23,39 @@ function clipboard() {
   return ''
 }
 
+/** Procura o arquivo salvo mais recente com "radar" no nome (json ou txt) nas pastas de sempre. */
+function procurar() {
+  const pastas = ['Downloads', 'Desktop', 'Documents', 'OneDrive/Desktop', 'OneDrive/Documentos', 'OneDrive/Área de Trabalho'].map((d) => join(homedir(), d))
+  const achados = []
+  for (const dir of pastas) {
+    try {
+      for (const f of readdirSync(dir)) {
+        if (/radar.*\.(json|txt)$/i.test(f)) { const full = join(dir, f); achados.push([full, statSync(full).mtimeMs]) }
+      }
+    } catch { /* pasta inexistente */ }
+  }
+  return achados.sort((a, b) => b[1] - a[1]).map(([f]) => f)
+}
+
 const arg = process.argv.slice(2).find((a) => !a.startsWith('--'))
-const raw = process.argv.includes('--clipboard') ? clipboard() : arg ? readFileSync(arg, 'utf8') : ''
+let raw = ''
+if (process.argv.includes('--clipboard')) raw = clipboard()
+else {
+  let alvo = arg
+  if (!alvo || !existsSync(alvo)) {
+    const cand = procurar()
+    if (arg && !existsSync(arg)) console.log(`Não encontrei o arquivo: ${arg}`)
+    if (!cand.length) {
+      console.log('Também não achei nenhum arquivo com "radar" no nome em Downloads, Desktop ou Documents.')
+      console.log('Dica: no Bloco de Notas, em "Salvar como", escolha o tipo "Todos os arquivos" e digite o nome radar-export.json')
+      console.log('(se o tipo for "Documentos de texto", ele salva como radar-export.json.txt). Depois rode de novo: npm.cmd run radar:import')
+      process.exit(1)
+    }
+    alvo = cand[0]
+    console.log(`Usando o arquivo mais recente encontrado: ${alvo}`)
+  }
+  raw = readFileSync(alvo, 'utf8')
+}
 if (!raw.trim()) { console.log('Nada para importar. No Radar, clique em "Copiar para o JARVIS" e rode: npm run radar:import -- --clipboard\n(ou informe o caminho de um arquivo .json).'); process.exit(1) }
 // Tenta o texto inteiro; se falhar, tenta só o trecho entre a primeira "{" e a última "}".
 function tentar(txt) { try { return JSON.parse(txt) } catch { return undefined } }
