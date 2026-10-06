@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { createInterface } from 'node:readline/promises'
+import { createInterface } from 'node:readline'
 import { DATA_FILE } from '../bridge/ops.mjs'
 import { DIRS } from '../bridge/home.mjs'
 import { radarToOperacao, validateRadar } from '../bridge/radar-data.mjs'
@@ -42,10 +42,14 @@ const arg = process.argv.slice(2).find((a) => !a.startsWith('--'))
 let raw = ''
 if (process.argv.includes('--colar')) {
   // Cola direto no terminal: o JSON do Radar é uma linha só.
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
   console.log('Cole o texto copiado do Radar (clique com o botão direito no PowerShell) e tecle Enter.')
-  raw = await rl.question('> ')
-  rl.close()
+  process.stdout.write('> ')
+  raw = await new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin })
+    let linha = ''
+    rl.on('line', (l) => { linha = l; rl.close() })
+    rl.on('close', () => resolve(linha)) // também resolve se o texto vier sem Enter final
+  })
 } else if (process.argv.includes('--clipboard')) raw = clipboard()
 else {
   let alvo = arg
