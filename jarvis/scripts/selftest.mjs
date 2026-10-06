@@ -48,6 +48,30 @@ t('análise do snapshot: atingimento cotas/VGV e conversão Q', anFx.dados.ating
 t('dados antigos geram aviso de defasagem', anFx.idadeDias > 1000 && /DEFASADOS/.test(anFx.avisos[0]))
 t('avisa que não há dados por captador e cita a data', anFx.avisos.some((x) => /captador/.test(x)) && anFx.avisos.some((x) => /2000-01-01/.test(x)))
 
+// ---- unidade: exportação do Radar (dados FICTÍCIOS, só em memória) ----
+const { radarToOperacao, validateRadar, parseRef } = await import('../bridge/radar-data.mjs')
+const radarFx = {
+  SNAP: { mes: 'Mês/2000', ano: 2000, mesIdx: 0, ref: '05/01/2000 · Sala', metaCotas: 100, metaVgv: 1000000, metaQs: 200, pesos: { util: 1, sex: 1.3, fds: 1.6 } },
+  REAL: { vgvVendido: 100000, cotasVendidas: 10, presencas: 50, qVenda: 20, nqVenda: 5, compradores: 8, cotasPropostas: 12, vgvPropostas: 150000, qnqProposta: 15 },
+  DIARIO: { '05/01': { casais: 10, vendas: 1, vgv: 10000, qs: 5, comp: 1 } },
+  PENETRACAO: {}, PLANO_FDS: [], LOCAIS: [['Ponto A', 3, 20, 7]], FONTES: [{ nome: 'Fonte pendente X', conf: 'pendente' }],
+  CAPTADORES: [
+    { nome: 'A', equipe: 'Alta', pres: 10, q: 6, nqv: 1, valid: 7, vendas: 2, valor: 50000 },
+    { nome: 'B', equipe: 'Média', pres: 2, q: 0, nqv: 0, valid: 0, vendas: 0, valor: 0 },
+    { nome: 'C', equipe: 'Base', pres: 0, q: null, nqv: null, valid: 0, vendas: 0, valor: 0 },
+  ],
+}
+console.log('\n[radar → operacao.json]')
+const opR = radarToOperacao(radarFx)
+t('valida e lê o carimbo (dd/mm → data)', validateRadar(radarFx) && opR.data === '2000-01-05' && parseRef('05/10/2026 23:02:09') === '2026-10-05')
+t('Total de Qs = Q + NQ c/ venda; NQ = presenças − Q', opR.realizado.totalQs === 25 && opR.realizado.nq === 30)
+t('eficiências nas definições da Cris', opR.eficiencias.aproveitamentoQs === 50 && opR.eficiencias.eficienciaQs === 40 && opR.eficiencias.comprador === 16 && opR.eficiencias.geral === 20)
+t('progresso do mês por peso de dia entre 0 e 1', opR.progressoMes > 0 && opR.progressoMes < 1)
+t('captador sem registro é marcado e não vira zero', opR.captadores[2].semRegistro === true && opR.captadores[2].casais === null)
+const anR = analyze(opR)
+t('análise: atingimento VGV/cotas/Qs e ritmo pelo mês', anR.dados.atingimentoVgv === 10 && anR.dados.atingimentoQs === 12.5 && anR.ritmo !== null)
+t('ranking ignora captador sem registro e cita fontes pendentes', anR.equipe.captadores === 2 && anR.equipe.semRegistro.includes('C') && anR.avisos.some((x) => /pendentes/.test(x)))
+
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')
 const P = await import('../bridge/persona.mjs')

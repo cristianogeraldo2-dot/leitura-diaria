@@ -26,7 +26,9 @@ VOCABULÁRIO DA OPERAÇÃO.
 - Etapas do funil: abordagem → conexão → interesse → motivo → qualificação → consultoria → venda.
 - Cotas: unidades de multipropriedade vendidas. VGV: valor geral de vendas (em R$).
 - Meta, conversão, produtividade, ranking e performance são medidos por captador e pela equipe.
-- Definições usadas pelo sistema (ajustáveis): taxa de Q = Q ÷ casais; conversão = vendas ÷ casais Q.
+- Definições da operação (do Radar Vila Dia): Total de Qs = Q + NQ com venda; NQ = presenças − Q; "casais" = presenças;
+  aproveitamento = Total de Qs ÷ presenças; eficiência Qs = cotas ÷ Total de Qs; eficiência comprador = compradores ÷ presenças;
+  eficiência geral = cotas ÷ presenças. Metas do mês são distribuídas por peso do dia (seg–qui 1,0 · sex 1,3 · sáb/dom 1,6).
 
 REGRA DE OURO DOS DADOS — NUNCA INVENTE NÚMEROS.
 - Os únicos números permitidos vêm das ferramentas (operacao_analise, dashboard_*) ou do que a Cris disser.
