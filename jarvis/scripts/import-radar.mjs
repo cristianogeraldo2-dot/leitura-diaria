@@ -24,8 +24,23 @@ function clipboard() {
 const arg = process.argv.slice(2).find((a) => !a.startsWith('--'))
 const raw = process.argv.includes('--clipboard') ? clipboard() : arg ? readFileSync(arg, 'utf8') : ''
 if (!raw.trim()) { console.log('Nada para importar. No Radar, clique em "Copiar para o JARVIS" e rode: npm run radar:import -- --clipboard\n(ou informe o caminho de um arquivo .json).'); process.exit(1) }
-let json
-try { json = JSON.parse(raw.replace(/^\uFEFF/, '')) } catch { console.log('O conteúdo não é um JSON válido (copie de novo pelo botão do Radar).'); process.exit(1) }
+// Tenta o texto inteiro; se falhar, tenta só o trecho entre a primeira "{" e a última "}".
+function tentar(txt) { try { return JSON.parse(txt) } catch { return undefined } }
+const limpo = raw.replace(/^\uFEFF/, '').trim()
+let json = tentar(limpo)
+if (json === undefined) {
+  const a = limpo.indexOf('{'), b = limpo.lastIndexOf('}')
+  if (a >= 0 && b > a) json = tentar(limpo.slice(a, b + 1))
+}
+if (json === undefined) {
+  // Diagnóstico sem expor dados: tamanho, primeiro caractere e se parece um comando/texto comum.
+  const inicio = limpo.startsWith('{') ? 'começa com "{" mas está incompleto ou cortado' : `começa com "${limpo.slice(0, 20).replace(/[\r\n]+/g, ' ')}"`
+  console.log(`O conteúdo não é um JSON válido (${limpo.length} caracteres; ${inicio}).`)
+  console.log('O JSON do Radar começa com {"exportVersion":1 e tem milhares de caracteres.')
+  console.log('Alternativa sem área de transferência: no Radar, selecione o texto da caixa embaixo do botão,')
+  console.log('cole no Bloco de Notas, salve como radar-export.json e rode: npm run radar:import -- "C:\\caminho\\radar-export.json"')
+  process.exit(1)
+}
 const src = json.radar ?? json
 if (!validateRadar(src)) { console.log('JSON reconhecido, mas não é uma exportação do Radar Vila Dia (faltam SNAP, REAL ou CAPTADORES).'); process.exit(1) }
 
