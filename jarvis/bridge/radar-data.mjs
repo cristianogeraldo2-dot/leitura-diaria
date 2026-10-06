@@ -111,7 +111,7 @@ const NOMES = ['SNAP', 'REAL', 'PLANO_FDS', 'PENETRACAO', 'DIARIO', 'CAPTADORES'
 const PROIBIDO = /\b(process|require|import|eval|Function|constructor|globalThis|window|document|fetch|XMLHttpRequest|__proto__|prototype|this|new|while|for|class|async|await)\b/
 
 function blocoConst(js, nome) {
-  const ini = js.search(new RegExp(`(^|\\n)const ${nome}\\s*=`))
+  const ini = js.search(new RegExp(`(^|[\\n;{}\\s])const ${nome}\\s*=`))
   if (ini < 0) return null
   const start = js.indexOf('=', ini) + 1
   // termina no primeiro ";" fora de strings/colchetes/chaves/parênteses
