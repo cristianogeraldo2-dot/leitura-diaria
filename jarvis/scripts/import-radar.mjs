@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { createInterface } from 'node:readline/promises'
 import { DATA_FILE } from '../bridge/ops.mjs'
 import { DIRS } from '../bridge/home.mjs'
 import { radarToOperacao, validateRadar } from '../bridge/radar-data.mjs'
@@ -39,7 +40,13 @@ function procurar() {
 
 const arg = process.argv.slice(2).find((a) => !a.startsWith('--'))
 let raw = ''
-if (process.argv.includes('--clipboard')) raw = clipboard()
+if (process.argv.includes('--colar')) {
+  // Cola direto no terminal: o JSON do Radar é uma linha só.
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  console.log('Cole o texto copiado do Radar (clique com o botão direito no PowerShell) e tecle Enter.')
+  raw = await rl.question('> ')
+  rl.close()
+} else if (process.argv.includes('--clipboard')) raw = clipboard()
 else {
   let alvo = arg
   if (!alvo || !existsSync(alvo)) {
@@ -56,7 +63,7 @@ else {
   }
   raw = readFileSync(alvo, 'utf8')
 }
-if (!raw.trim()) { console.log('Nada para importar. No Radar, clique em "Copiar para o JARVIS" e rode: npm run radar:import -- --clipboard\n(ou informe o caminho de um arquivo .json).'); process.exit(1) }
+if (!raw.trim()) { console.log('Nada para importar. No Radar, toque em "Copiar para o JARVIS" e rode: npm.cmd run radar:import -- --colar\n(ou --clipboard, ou informe o caminho de um arquivo .json).'); process.exit(1) }
 // Tenta o texto inteiro; se falhar, tenta só o trecho entre a primeira "{" e a última "}".
 function tentar(txt) { try { return JSON.parse(txt) } catch { return undefined } }
 const limpo = raw.replace(/^\uFEFF/, '').trim()
