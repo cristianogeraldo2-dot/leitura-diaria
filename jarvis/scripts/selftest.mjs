@@ -72,6 +72,17 @@ const anR = analyze(opR)
 t('análise: atingimento VGV/cotas/Qs e ritmo pelo mês', anR.dados.atingimentoVgv === 10 && anR.dados.atingimentoQs === 12.5 && anR.ritmo !== null)
 t('ranking ignora captador sem registro e cita fontes pendentes', anR.equipe.captadores === 2 && anR.equipe.semRegistro.includes('C') && anR.avisos.some((x) => /pendentes/.test(x)))
 
+// ---- unidade: leitor de planilhas (CSV/XLSX), dados FICTÍCIOS ----
+const { readTable, describeTable, toNumber } = await import('../bridge/tabular.mjs')
+console.log('\n[planilhas]')
+const csvT = readTable(join(ROOT, 'scripts/fixtures/ficticio.csv'))
+t('CSV com ; e Latin-1 e aspas', csvT.headers.join('|') === 'Captador|Vendas|Valor|Data' && csvT.rows.length === 2 && csvT.rows[0][0] === 'José "Zé" Silva')
+t('número no formato brasileiro', toNumber('1.234,56') === 1234.56 && toNumber('R$ 10.000.001') === 10000001 && toNumber('12,5%') === 12.5 && toNumber('abc') === null)
+const xlT = readTable(join(ROOT, 'scripts/fixtures/ficticio.xlsx'))
+t('XLSX sem dependências (strings compartilhadas, & e inline)', xlT.headers.join('|') === 'Captador|Vendas|Data' && xlT.rows[0][0] === 'Fulano & Cia' && xlT.rows[0][1] === '3' && xlT.rows[0][2] === '05/10/2000')
+const dsc = describeTable(csvT)
+t('descrição da estrutura não vaza valores', dsc.linhas === 2 && dsc.colunas[1].tipo === 'número' && dsc.colunas[3].tipo === 'data' && !JSON.stringify(dsc).includes('Silva'))
+
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')
 const P = await import('../bridge/persona.mjs')
