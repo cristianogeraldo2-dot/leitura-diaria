@@ -83,6 +83,24 @@ t('XLSX sem dependências (strings compartilhadas, & e inline)', xlT.headers.joi
 const dsc = describeTable(csvT)
 t('descrição da estrutura não vaza valores', dsc.linhas === 2 && dsc.colunas[1].tipo === 'número' && dsc.colunas[3].tipo === 'data' && !JSON.stringify(dsc).includes('Silva'))
 
+// ---- unidade: leitura do HTML do Radar (FICTÍCIO) ----
+const { extractRadarFromHtml } = await import('../bridge/radar-data.mjs')
+const htmlFx = `<html><body><script>
+const SNAP = { mes: 'M', ano: 2000, mesIdx: 0, ref: '05/01/2000 · Sala', metaCotas: 10, metaVgv: 100, metaQs: 20, pesos: { util: 1, sex: 1.3, fds: 1.6 } };
+const REAL = { presencas: 4, qVenda: 2, nqVenda: 1, cotasVendidas: 1, vgvVendido: 50, compradores: 1 }; // comentário; com ponto e vírgula
+const PLANO_FDS = []; const PENETRACAO = {}; const DIARIO = { '05/01': { casais: 4, vendas: 1, vgv: 50, qs: 3, comp: 1 } };
+const CAPTADORES = [ ['Ana; Maria','Alta',2,1,0,1,0,0], ['Sem Registro','Base'] ].map(([nome,equipe,pres=0,q=null,nqv=null,valid=0,vendas=0,valor=0])=>({nome,equipe,pres,q,nqv,valid,vendas,valor}));
+const LOCAIS = [['P1',1,5,2]];
+const FONTES = [{ nome:'F', carimbo:'x', conf:'ok', txt:'texto longo' }];
+function util(){ return 1 }
+</script></body></html>`
+const exH = extractRadarFromHtml(htmlFx)
+console.log('\n[radar html]')
+t('lê os literais do HTML (incl. ; dentro de string e .map)', exH && exH.SNAP.metaCotas === 10 && exH.CAPTADORES.length === 2 && exH.CAPTADORES[0].nome === 'Ana; Maria' && exH.CAPTADORES[1].q === null)
+t('FONTES vêm sem o texto livre', exH.FONTES[0].txt === undefined && exH.FONTES[0].conf === 'ok')
+t('HTML com código perigoso é recusado', extractRadarFromHtml('<script>const SNAP={a:process.exit(1)};const REAL={};const CAPTADORES=[];const PLANO_FDS=[];const PENETRACAO={};const DIARIO={};const LOCAIS=[];</script>') === null)
+t('HTML que não é o Radar é recusado', extractRadarFromHtml('<html><body>oi</body></html>') === null)
+
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')
 const P = await import('../bridge/persona.mjs')

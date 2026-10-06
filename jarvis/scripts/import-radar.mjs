@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { DATA_FILE } from '../bridge/ops.mjs'
 import { DIRS } from '../bridge/home.mjs'
-import { radarToOperacao, validateRadar } from '../bridge/radar-data.mjs'
+import { radarToOperacao, validateRadar, extractRadarFromHtml } from '../bridge/radar-data.mjs'
 
 function clipboard() {
   const tries = process.platform === 'win32'
@@ -31,7 +31,7 @@ function procurar() {
   for (const dir of pastas) {
     try {
       for (const f of readdirSync(dir)) {
-        if (/radar.*\.(json|txt)$/i.test(f)) { const full = join(dir, f); achados.push([full, statSync(full).mtimeMs]) }
+        if (/radar.*\.(json|txt|html?)$/i.test(f)) { const full = join(dir, f); achados.push([full, statSync(full).mtimeMs]) }
       }
     } catch { /* pasta inexistente */ }
   }
@@ -66,6 +66,18 @@ else {
     console.log(`Usando o arquivo mais recente encontrado: ${alvo}`)
   }
   raw = readFileSync(alvo, 'utf8')
+}
+// O que foi colado pode ser o CAMINHO de um arquivo (ex.: "C:\\...\\Radar.html" copiado no Explorador).
+const colado = raw.trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1')
+if (colado && colado.length < 500 && !colado.startsWith('{') && !colado.startsWith('<') && existsSync(colado)) {
+  console.log(`Lendo o arquivo indicado: ${colado}`)
+  raw = readFileSync(colado, 'utf8')
+}
+const htmlTxt = raw.replace(/^\uFEFF/, '').trim()
+if (/^<(!doctype|html)/i.test(htmlTxt)) {
+  const dados = extractRadarFromHtml(htmlTxt)
+  if (!dados) { console.log('Esse HTML não parece ser o Radar Vila Dia (não achei SNAP, REAL e CAPTADORES em formato de dados).'); process.exit(1) }
+  raw = JSON.stringify(dados)
 }
 if (!raw.trim()) { console.log('Nada para importar. No Radar, toque em "Copiar para o JARVIS" e rode: npm.cmd run radar:import -- --colar\n(ou --clipboard, ou informe o caminho de um arquivo .json).'); process.exit(1) }
 // Tenta o texto inteiro; se falhar, tenta só o trecho entre a primeira "{" e a última "}".

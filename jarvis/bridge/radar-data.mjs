@@ -98,3 +98,52 @@ export function radarToOperacao(x) {
     derivados: ['realizado.nq', 'realizado.totalQs', 'progressoMes', 'eficiencias.*'],
   }
 }
+
+/**
+ * Lê os dados direto do HTML do Radar (arquivo baixado). Só os literais de dados são avaliados
+ * (SNAP, REAL, PLANO_FDS, PENETRACAO, DIARIO, CAPTADORES, LOCAIS, FONTES), em um contexto vazio, com
+ * tempo limite, sem acesso a require/process/window e com geração de código por string desligada.
+ * Blocos que mencionem qualquer coisa fora do formato de dados são recusados.
+ */
+import vm from 'node:vm'
+
+const NOMES = ['SNAP', 'REAL', 'PLANO_FDS', 'PENETRACAO', 'DIARIO', 'CAPTADORES', 'LOCAIS', 'FONTES']
+const PROIBIDO = /\b(process|require|import|eval|Function|constructor|globalThis|window|document|fetch|XMLHttpRequest|__proto__|prototype|this|new|while|for|class|async|await)\b/
+
+function blocoConst(js, nome) {
+  const ini = js.search(new RegExp(`(^|\\n)const ${nome}\\s*=`))
+  if (ini < 0) return null
+  const start = js.indexOf('=', ini) + 1
+  // termina no primeiro ";" fora de strings/colchetes/chaves/parênteses
+  let depth = 0, str = null, esc = false, bloco = ''
+  for (let i = start; i < js.length; i++) {
+    const c = js[i]
+    bloco += c
+    if (str) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === str) str = null; continue }
+    if (c === "'" || c === '"' || c === '`') { str = c; continue }
+    if (c === '/' && js[i + 1] === '*') { const e = js.indexOf('*/', i + 2); if (e < 0) return null; bloco += js.slice(i + 1, e + 2); i = e + 1; continue }
+    if (c === '/' && js[i + 1] === '/') { const e = js.indexOf('\n', i); bloco += js.slice(i + 1, e < 0 ? js.length : e); i = e < 0 ? js.length : e - 1; continue }
+    if ('([{'.includes(c)) depth++
+    else if (')]}'.includes(c)) depth--
+    else if (c === ';' && depth === 0) return bloco.slice(0, -1)
+  }
+  return null
+}
+
+export function extractRadarFromHtml(html) {
+  const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1])
+  const js = scripts.find((s) => /const\s+SNAP\s*=/.test(s) && /const\s+REAL\s*=/.test(s))
+  if (!js) return null
+  const out = {}
+  for (const nome of NOMES) {
+    const b = blocoConst(js, nome)
+    if (b === null) { if (nome === 'FONTES') continue; return null }
+    // o texto dos comentários e das strings não conta para a checagem de segurança
+    const semTexto = b.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '').replace(/'(?:\\.|[^'\\])*'/g, "''").replace(/"(?:\\.|[^"\\])*"/g, '""')
+    if (PROIBIDO.test(semTexto)) return null
+    const ctx = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } })
+    out[nome] = vm.runInContext(`(${b})`, ctx, { timeout: 1000 })
+  }
+  if (out.FONTES) out.FONTES = out.FONTES.map((f) => ({ nome: f.nome, carimbo: f.carimbo, conf: f.conf }))
+  return out
+}
