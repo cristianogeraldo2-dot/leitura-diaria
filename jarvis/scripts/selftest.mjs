@@ -156,6 +156,9 @@ const msgErr = await (async () => { try { await PUB.publicarRascunho(ok0, { fetc
 t('erro da API nunca vaza o token', msgErr && !msgErr.includes('TOKEN_FALSO_123456'))
 const conn = await PUB.verificarConexao(fakeFetch)
 t('verificar conexão mostra usuário e não o token', conn.ok === true && conn.usuario === 'cris' && !JSON.stringify(conn).includes('TOKEN_FALSO'))
+const fakeContas = async () => ({ ok: true, status: 200, json: async () => ({ data: [{ name: 'Página X', instagram_business_account: { id: '123', username: 'cris' } }, { name: 'Sem IG' }] }) })
+const dc = await PUB.descobrirContas(fakeContas)
+t('descobrir contas lista Página, @ e ID, sem token', dc.length === 2 && dc[0].instagramUserId === '123' && dc[1].instagramUserId === null && !JSON.stringify(dc).includes('TOKEN_FALSO'))
 delete process.env.IG_ACCESS_TOKEN; delete process.env.IG_USER_ID
 t('sem credenciais a conexão diz como configurar', (await PUB.verificarConexao()).configurado === false)
 
