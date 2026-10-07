@@ -102,23 +102,36 @@ function mcpFromClaudeConfig() {
   } catch { return [] }
 }
 
-let claudeCache = { at: 0, v: null }
-/** Real check: is the CLI installed and logged in? Cached for a minute. */
+let claudeCache = { at: 0, v: null, bomEm: 0, bom: null }
+let claudeEmVoo = null
+/**
+ * Verifica o Claude Code (instalado e logado) com `claude auth status`.
+ * No Windows o comando pode levar mais de 8s, então o limite é maior e uma falha por TEMPO ESGOTADO
+ * não derruba o painel se houve resposta boa há menos de 30 min. Uma checagem por vez.
+ */
 export function claudeStatus() {
   if (Date.now() - claudeCache.at < 60_000 && claudeCache.v) return Promise.resolve(claudeCache.v)
-  return new Promise((res) => {
-    execFile('claude', ['auth', 'status'], { timeout: 8000, shell: process.platform === 'win32' }, (err, out) => {
+  if (claudeEmVoo) return claudeEmVoo
+  claudeEmVoo = new Promise((res) => {
+    execFile('claude', ['auth', 'status'], { timeout: 25_000, shell: process.platform === 'win32', windowsHide: true }, (err, out) => {
       let v
-      if (err && !out) v = { ok: false, installed: err.code !== 'ENOENT', loggedIn: false, note: err.code === 'ENOENT' ? 'CLI do Claude Code não encontrada no PATH' : 'falha ao consultar autenticação' }
-      else {
+      const tempoEsgotado = Boolean(err && (err.killed || err.signal === 'SIGTERM'))
+      if (err && !out) {
+        v = { ok: false, installed: err.code !== 'ENOENT', loggedIn: false, tempoEsgotado, note: err.code === 'ENOENT' ? 'CLI do Claude Code não encontrada no PATH do processo da bridge' : tempoEsgotado ? 'a verificação demorou mais de 25s' : `falha ao consultar (código ${err.code ?? '?'})` }
+      } else {
         let j = {}
         try { j = JSON.parse(out) } catch { /* texto livre */ }
-        v = { ok: j.loggedIn === true, installed: true, loggedIn: j.loggedIn === true, method: j.authMethod ?? null }
+        v = { ok: j.loggedIn === true, installed: true, loggedIn: j.loggedIn === true, method: j.authMethod ?? null, ...(j.loggedIn === true ? {} : { note: 'o Claude Code respondeu, mas não está logado — rode `claude` e faça login' }) }
       }
-      claudeCache = { at: Date.now(), v }
+      if (v.ok) claudeCache.bom = v, claudeCache.bomEm = Date.now()
+      // timeout sem resposta ruim confirmada: mantém o último estado bom recente
+      if (!v.ok && v.tempoEsgotado && claudeCache.bom && Date.now() - claudeCache.bomEm < 30 * 60_000) v = { ...claudeCache.bom, note: 'verificação lenta; usando o último resultado bom' }
+      claudeCache.at = Date.now(); claudeCache.v = v
+      claudeEmVoo = null
       res(v)
     })
   })
+  return claudeEmVoo
 }
 
 /** Compact status for the dashboard widget. Booleans only — no secrets, no data. */
