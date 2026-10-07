@@ -16,6 +16,7 @@ const sk = (name, why) => { skip++; console.log(`  ⏭  ${name} — ${why}`) }
 
 // ---- unidade: analytics -----------------------------------------------------
 const { analyze } = await import('../bridge/analytics.mjs')
+const P0 = await import('../bridge/persona.mjs')
 const ex = JSON.parse(readFileSync(join(ROOT, 'knowledge/operacao.exemplo.json'), 'utf8'))
 const a = analyze(ex)
 console.log('\n[analytics]')
@@ -100,6 +101,26 @@ t('lê os literais do HTML (incl. ; dentro de string e .map)', exH && exH.SNAP.m
 t('FONTES vêm sem o texto livre', exH.FONTES[0].txt === undefined && exH.FONTES[0].conf === 'ok')
 t('HTML com código perigoso é recusado', extractRadarFromHtml('<script>const SNAP={a:process.exit(1)};const REAL={};const CAPTADORES=[];const PLANO_FDS=[];const PENETRACAO={};const DIARIO={};const LOCAIS=[];</script>') === null)
 t('HTML que não é o Radar é recusado', extractRadarFromHtml('<html><body>oi</body></html>') === null)
+
+// ---- unidade: módulo Instagram (dados FICTÍCIOS, pasta temporária) ----
+const IG = await import('../bridge/instagram.mjs')
+console.log('\n[instagram]')
+const igTmp = mkdtempSync(join(tmpdir(), 'ig-'))
+const igSt = IG.createStore(igTmp)
+t('perfil vazio e atualização parcial preserva o resto', JSON.stringify(igSt.perfil()) === '{}' && igSt.perfil({ nicho: 'viagem' }).nicho === 'viagem' && igSt.perfil({ tom: 'leve' }).nicho === 'viagem')
+const r1 = igSt.salvar({ tipo: 'reel', titulo: 'Teste', legenda: 'x' })
+t('rascunho nasce como "rascunho" e não como publicado', r1.status === 'rascunho' && igSt.listar('rascunho').length === 1 && igSt.listar('aprovado').length === 0)
+t('aprovar muda o status e id inválido não quebra', igSt.aprovar(r1.id).status === 'aprovado' && igSt.aprovar('nao-existe') === null && igSt.aprovar('../../x') === null)
+const csvIg = 'Data;Tipo;Alcance;Curtidas;Comentários;Salvamentos;Compartilhamentos;Legenda\r\n01/01/2000;Reel;1000;50;5;10;10;A\r\n02/01/2000;Post;1000;10;0;0;0;B\r\n03/01/2000;Reel;500;40;10;20;5;C\r\n04/01/2000;Story;0;1;0;0;0;D\r\n'
+writeFileSync(join(igTmp, 'ficticio.csv'), csvIg)
+const rk = IG.rankPosts(readTable(join(igTmp, 'ficticio.csv')))
+t('ranking por engajamento ponderado (Reel C > Reel A > Post B)', rk.melhores[0].legenda === 'C' && rk.melhores[1].legenda === 'A' && rk.melhores[2].legenda === 'B')
+t('média por tipo e colunas reconhecidas', rk.mediaPorTipo.Reel.posts === 2 && rk.colunasReconhecidas.alcance === 'Alcance' && rk.colunasReconhecidas.salvamentos === 'Salvamentos')
+t('alcance zero não gera taxa inventada', !rk.melhores.some((x) => x.legenda === 'D'))
+let bloqueou = false; try { IG.importarMetricas('../../fora.csv', igSt, join(igTmp, 'entrada')) } catch { bloqueou = true }
+t('importação só lê dentro da pasta de entrada', bloqueou)
+rmSync(igTmp, { recursive: true, force: true })
+t('modo conteúdo é reconhecido por voz', P0.detectMode('Jarvis, modo conteúdo') === 'conteudo' && P0.detectMode('modo instagram') === 'conteudo')
 
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')

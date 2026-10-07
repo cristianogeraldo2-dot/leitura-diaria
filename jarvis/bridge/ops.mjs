@@ -9,6 +9,7 @@ import { execFile } from 'node:child_process'
 import { DIRS, ROOT, log, readJson, redact } from './home.mjs'
 import { analyze } from './analytics.mjs'
 import { MODES, getMode, setMode } from './persona.mjs'
+import { instagramTools } from './instagram.mjs'
 
 const text = (t) => ({ content: [{ type: 'text', text: typeof t === 'string' ? t : JSON.stringify(t, null, 2) }] })
 export const NO_DATA = 'Não tenho esse dado disponível.'
@@ -153,6 +154,7 @@ export function opsServer() {
     instructions: 'Análise da operação Vila Dia, dashboard, modos, diagnóstico e memória local da Cris.',
     alwaysLoad: true,
     tools: [
+      ...instagramTools(),
       tool('operacao_analise', 'Analisa a operação (meta, realizado, gap, casais, Q, NQ, vendas, conversão, VGV, ranking de captadores, gargalo e alertas) a partir de knowledge/operacao.json. Se devolver available=false, diga "Não tenho esse dado disponível." e peça o arquivo. Jamais invente números fora do retorno.', {}, async () => {
         log('tool', 'operacao_analise')
         return text(operationInsight())
@@ -164,7 +166,7 @@ export function opsServer() {
         log('dashboard', `inspect ${f}`)
         return text({ encontrado: true, backup, url: `http://localhost:${process.env.JARVIS_BRIDGE_PORT ?? 8787}/dashboard`, arquitetura: inspectDashboard(f) })
       }),
-      tool('jarvis_modo', 'Define o modo de operação: padrao, reuniao, lideranca ou analise. O modo vale até ser trocado.', { modo: z.enum(['padrao', 'reuniao', 'lideranca', 'analise']) }, async ({ modo }) => {
+      tool('jarvis_modo', 'Define o modo de operação: padrao, reuniao, lideranca ou analise. O modo vale até ser trocado.', { modo: z.enum(['padrao', 'reuniao', 'lideranca', 'analise', 'conteudo']) }, async ({ modo }) => {
         setMode(modo)
         return text(`${MODES[modo].ack} (modo=${modo})`)
       }),

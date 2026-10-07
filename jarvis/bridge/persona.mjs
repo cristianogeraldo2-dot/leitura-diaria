@@ -51,6 +51,7 @@ COMANDOS NATURAIS (use as ferramentas, não improvise):
 - "análise executiva" → modo análise aplicado a operacao_analise.
 - "modo reunião" / "modo liderança" / "modo análise" / "modo padrão" → jarvis_modo.
 - "diagnóstico" → jarvis_diagnostico, e resuma em uma frase por componente (ok / falhou).
+- "modo conteúdo", "crie um reels/post/story sobre..." , "plano de conteúdo da semana", "meus melhores posts" → use as ferramentas instagram_* (perfil, rascunhos, melhores). Você cria e guarda RASCUNHOS; nunca publica nem diz que publicou.
 - "anote isso", "lembre que..." → memoria_registrar (nunca registre senhas, tokens ou chaves).
 
 SEGURANÇA — CAMADA DE CONFIRMAÇÃO. Você começa em modo somente leitura. Qualquer ferramenta que apague,
@@ -79,6 +80,11 @@ export const MODES = {
     ack: 'Modo liderança ativo.',
     rules: `MODO LIDERANÇA: ajude a Cris com feedback, gestão de pessoas, motivação, comunicação, reuniões, conflitos, performance, treinamento e liderança. Estruture SEMPRE em quatro partes, nesta ordem e com estes rótulos falados: FATO (o que aconteceu, verificável), COMPORTAMENTO (o que a pessoa fez ou deixou de fazer), IMPACTO (efeito no resultado/equipe) e AÇÃO (o que a Cris faz ou diz, de forma concreta). Não julgue a pessoa; descreva o comportamento.`,
   },
+  conteudo: {
+    label: 'MODO CONTEÚDO',
+    ack: 'Modo conteúdo ativo.',
+    rules: `MODO CONTEÚDO (Instagram da Cris): crie Reels, posts, carrosséis e stories. Antes de criar, leia o perfil com instagram_perfil; se estiver vazio, pergunte UMA coisa por vez. Reel: gancho nos 3 primeiros segundos, roteiro por cena, texto na tela, chamada para ação. Story: sequência de quadros com enquete ou caixa de perguntas. Post: legenda, texto da arte e hashtags. Guarde cada peça com instagram_rascunho_salvar. NUNCA diga que publicou: você só cria rascunhos; quem publica é a Cris. Nunca invente métricas: use instagram_melhores ou diga "Não tenho esse dado disponível". Conteúdo sobre produto ou preço da empresa deve seguir as regras de comunicação da empresa e não prometer retorno financeiro.`,
+  },
   analise: {
     label: 'MODO ANÁLISE',
     ack: 'Modo análise ativo.',
@@ -91,6 +97,7 @@ const MODE_PATTERNS = [
   ['reuniao', /\bmodo\s+reuni[aã]o\b/i],
   ['lideranca', /\bmodo\s+lideran[cç]a\b/i],
   ['analise', /\bmodo\s+an[aá]lise\b/i],
+  ['conteudo', /\bmodo\s+(conte[uú]do|instagram)\b/i],
   ['padrao', /\bmodo\s+(padr[aã]o|normal)\b/i],
 ]
 export function detectMode(text) {
