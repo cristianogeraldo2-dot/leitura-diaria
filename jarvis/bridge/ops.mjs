@@ -123,7 +123,7 @@ export function claudeStatus() {
         try { j = JSON.parse(out) } catch { /* texto livre */ }
         v = { ok: j.loggedIn === true, installed: true, loggedIn: j.loggedIn === true, method: j.authMethod ?? null, ...(j.loggedIn === true ? {} : { note: 'o Claude Code respondeu, mas não está logado — rode `claude` e faça login' }) }
       }
-      if (v.ok) claudeCache.bom = v, claudeCache.bomEm = Date.now()
+      if (v.ok) { claudeCache.bom = v; claudeCache.bomEm = Date.now() }
       // timeout sem resposta ruim confirmada: mantém o último estado bom recente
       if (!v.ok && v.tempoEsgotado && claudeCache.bom && Date.now() - claudeCache.bomEm < 30 * 60_000) v = { ...claudeCache.bom, note: 'verificação lenta; usando o último resultado bom' }
       claudeCache.at = Date.now(); claudeCache.v = v
