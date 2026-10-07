@@ -122,6 +122,43 @@ t('importação só lê dentro da pasta de entrada', bloqueou)
 rmSync(igTmp, { recursive: true, force: true })
 t('modo conteúdo é reconhecido por voz', P0.detectMode('Jarvis, modo conteúdo') === 'conteudo' && P0.detectMode('modo instagram') === 'conteudo')
 
+// ---- unidade: publicação no Instagram (API SIMULADA; nenhuma rede, credenciais falsas) ----
+const PUB = await import('../bridge/instagram-publish.mjs')
+console.log('\n[instagram publicar — simulado]')
+const rej = async (item) => { try { await PUB.publicarRascunho(item); return null } catch (e) { return String(e.message) } }
+const ok0 = { id: 'a', tipo: 'post', status: 'aprovado', legenda: 'Oi', hashtags: ['viagem'], midiaUrls: ['https://exemplo.com/a.jpg'] }
+t('recusa rascunho não aprovado', /APROVADOS/.test(await rej({ ...ok0, status: 'rascunho' })))
+t('recusa sem mídia e mídia não-https', /não tem mídia/.test(await rej({ ...ok0, midiaUrls: [] })) && /https/.test(await rej({ ...ok0, midiaUrls: ['http://x.com/a.jpg'] })))
+t('sem credenciais roda em SIMULAÇÃO e não chama a rede', (await PUB.publicarRascunho(ok0, { fetchFn: () => { throw new Error('rede!') } })).simulado === true)
+process.env.IG_ACCESS_TOKEN = 'TOKEN_FALSO_123456'; process.env.IG_USER_ID = '999'
+const chamadas = []
+const fakeFetch = async (url, opt = {}) => {
+  const corpo = String(opt.body ?? '') + ' ' + url
+  chamadas.push({ url: String(url).replace(/^https:\/\/graph\.facebook\.com\/[^/]+/, ''), corpo })
+  const base = (j, status = 200) => ({ ok: status < 400, status, json: async () => j })
+  if (/status_code/.test(String(url))) return base({ status_code: 'FINISHED' })
+  if (/media_publish/.test(String(url))) return base({ id: 'PUB1' })
+  if (/\/999\/media$/.test(String(url))) return base({ id: 'C' + chamadas.length })
+  if (/\/999\?/.test(String(url))) return base({ username: 'cris', account_type: 'BUSINESS' })
+  return base({ error: { message: 'falhou com TOKEN_FALSO_123456' } }, 400)
+}
+const rPost = await PUB.publicarRascunho(ok0, { fetchFn: fakeFetch })
+t('post: cria contêiner e publica (2 chamadas) com legenda+hashtags', rPost.idMidia === 'PUB1' && chamadas.length === 2 && chamadas[0].corpo.includes('caption=Oi') && chamadas[0].corpo.includes('%23viagem'))
+chamadas.length = 0
+const rReel = await PUB.publicarRascunho({ ...ok0, tipo: 'reel', midiaUrls: ['https://exemplo.com/v.mp4'] }, { fetchFn: fakeFetch, dormir: async () => {} })
+t('reel: REELS + espera processar + publica', rReel.idMidia === 'PUB1' && chamadas.some((c) => c.corpo.includes('media_type=REELS')) && chamadas.some((c) => /status_code/.test(c.url)))
+chamadas.length = 0
+const rCar = await PUB.publicarRascunho({ ...ok0, tipo: 'carrossel', midiaUrls: ['https://e.com/1.jpg', 'https://e.com/2.jpg'] }, { fetchFn: fakeFetch })
+t('carrossel: filhos + contêiner CAROUSEL + publica', rCar.idMidia === 'PUB1' && chamadas.filter((c) => c.corpo.includes('is_carousel_item=true')).length === 2 && chamadas.some((c) => c.corpo.includes('media_type=CAROUSEL')))
+t('1 mídia só não vira carrossel', /pelo menos 2/.test(await rej({ ...ok0, tipo: 'carrossel' }) ?? ''))
+const badFetch = async () => ({ ok: false, status: 400, json: async () => ({ error: { message: 'erro com TOKEN_FALSO_123456' } }) })
+const msgErr = await (async () => { try { await PUB.publicarRascunho(ok0, { fetchFn: badFetch }) } catch (e) { return String(e.message) } })()
+t('erro da API nunca vaza o token', msgErr && !msgErr.includes('TOKEN_FALSO_123456'))
+const conn = await PUB.verificarConexao(fakeFetch)
+t('verificar conexão mostra usuário e não o token', conn.ok === true && conn.usuario === 'cris' && !JSON.stringify(conn).includes('TOKEN_FALSO'))
+delete process.env.IG_ACCESS_TOKEN; delete process.env.IG_USER_ID
+t('sem credenciais a conexão diz como configurar', (await PUB.verificarConexao()).configurado === false)
+
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')
 const P = await import('../bridge/persona.mjs')

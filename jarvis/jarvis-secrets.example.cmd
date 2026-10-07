@@ -11,3 +11,8 @@ rem  Get a key: https://elevenlabs.io -> your profile -> API keys.
 rem  Paste it between the = and the closing quote, with no spaces, then save.
 rem
 set "ELEVENLABS_API_KEY="
+rem
+rem  Instagram (publicacao pela API oficial). Preencha SO no seu computador; nunca cole no chat nem no Git.
+rem  IG_ACCESS_TOKEN: token de acesso do app Meta. IG_USER_ID: id da conta profissional do Instagram.
+set "IG_ACCESS_TOKEN="
+set "IG_USER_ID="

@@ -27,6 +27,7 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
+import { socialServer } from './instagram-publish.mjs'
 import { opsServer, operationInsight, findDashboard, backupDashboard, diagnostics, statusSummary } from './ops.mjs'
 import { PERSONA_PT, detectMode, setMode, getMode, modeTag, isConfirmation, confirmPending, notePending, noteAwaiting, consumeGrant } from './persona.mjs'
 import { log } from './home.mjs'
@@ -1307,6 +1308,8 @@ wss.on('connection', (socket) => {
         jarvis_ui: uiServer((op, args) => send({ type: 'ui', op, args })),
         // Operação Vila Dia: análise, dashboard, modos, diagnóstico e memória.
         jarvis_ops: opsServer(),
+        // Publicação no Instagram: fora da lista liberada de decideTool => exige confirmação por voz.
+        jarvis_social: socialServer(),
         // The user's own Chrome, over the extension's native-host socket. It
         // holds no per-connection state, but it is built here with the rest so
         // the write gate is read once, at the same point as everything else.

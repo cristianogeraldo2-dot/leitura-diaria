@@ -10,6 +10,7 @@ import { DIRS, ROOT, log, readJson, redact } from './home.mjs'
 import { analyze } from './analytics.mjs'
 import { MODES, getMode, setMode } from './persona.mjs'
 import { instagramTools } from './instagram.mjs'
+import { verificarConexao } from './instagram-publish.mjs'
 
 const text = (t) => ({ content: [{ type: 'text', text: typeof t === 'string' ? t : JSON.stringify(t, null, 2) }] })
 export const NO_DATA = 'Não tenho esse dado disponível.'
@@ -155,6 +156,7 @@ export function opsServer() {
     alwaysLoad: true,
     tools: [
       ...instagramTools(),
+      tool('instagram_conexao', 'Verifica (só leitura) se a conta do Instagram está conectada pela API oficial. Nunca mostra o token.', {}, async () => text(await verificarConexao())),
       tool('operacao_analise', 'Analisa a operação (meta, realizado, gap, casais, Q, NQ, vendas, conversão, VGV, ranking de captadores, gargalo e alertas) a partir de knowledge/operacao.json. Se devolver available=false, diga "Não tenho esse dado disponível." e peça o arquivo. Jamais invente números fora do retorno.', {}, async () => {
         log('tool', 'operacao_analise')
         return text(operationInsight())
