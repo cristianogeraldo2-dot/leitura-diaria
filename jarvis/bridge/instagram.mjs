@@ -43,6 +43,22 @@ export function createStore(dir = IG_DIR) {
       writeFileSync(f, JSON.stringify(x, null, 2))
       return x
     },
+    aprovarLote: (ids) => ids.map((id) => {
+      const f = join(rascD, `${String(id).replace(/[^\w-]/g, '')}.json`)
+      const x = existsSync(f) ? readJ(f, null) : null
+      if (!x) return { id, ok: false, motivo: 'não encontrado' }
+      if (x.status === 'publicado') return { id, ok: false, motivo: 'já publicado' }
+      x.status = 'aprovado'; x.aprovadoEm = new Date().toISOString()
+      writeFileSync(f, JSON.stringify(x, null, 2))
+      return { id, ok: true, titulo: x.titulo, tipo: x.tipo, agendadoPara: x.agendadoPara ?? null, temMidia: Boolean(x.midiaUrls?.length) }
+    }),
+    registrarFalha: (id, motivo) => {
+      const f = join(rascD, `${String(id).replace(/[^\w-]/g, '')}.json`)
+      const x = readJ(f, null)
+      if (!x) return null
+      x.falhas = (x.falhas ?? 0) + 1; x.ultimaFalha = String(motivo).slice(0, 300); x.falhouEm = new Date().toISOString()
+      writeFileSync(f, JSON.stringify(x, null, 2)); return x
+    },
     obter: (id) => { const f = join(rascD, `${String(id).replace(/[^\w-]/g, '')}.json`); return existsSync(f) ? readJ(f, null) : null },
     marcarPublicado: (id, resultado) => {
       const f = join(rascD, `${String(id).replace(/[^\w-]/g, '')}.json`)
@@ -126,10 +142,16 @@ export function instagramTools(store = createStore()) {
       tipo: z.enum(['post', 'carrossel', 'reel', 'story']), titulo: z.string().min(2).max(120), legenda: z.string().max(2200).optional(),
       roteiro: z.string().max(4000).optional(), textoNaArte: z.string().max(1500).optional(), hashtags: z.array(z.string()).max(30).optional(),
       objetivo: z.string().max(300).optional(), sugestaoDeDia: z.string().max(80).optional(),
+      agendadoPara: z.string().max(40).optional().describe('data/hora sugerida para o post sair (ex.: 2026-10-12 18:30). É só sugestão: a publicação só acontece quando a Cris confirma'),
       midiaUrls: z.array(z.string().url()).max(10).optional().describe('URLs https PÚBLICAS da imagem/vídeo, necessárias só para publicar pela API'),
     }, async (d) => { const x = store.salvar(JSON.parse(redact(JSON.stringify(d)))); log('tool', `instagram_rascunho_salvar ${d.tipo}`); return text({ salvo: true, id: x.id, status: x.status, aviso: 'Rascunho guardado. Nada foi publicado.' }) }),
-    tool('instagram_rascunhos', 'Lista os rascunhos guardados (opcionalmente por status: rascunho ou aprovado).', { status: z.enum(['rascunho', 'aprovado', 'publicado']).optional() }, async ({ status }) => text(store.listar(status).map(({ id, tipo, titulo, status: s, sugestaoDeDia }) => ({ id, tipo, titulo, status: s, sugestaoDeDia })))),
+    tool('instagram_rascunhos', 'Lista os rascunhos guardados (opcionalmente por status: rascunho ou aprovado).', { status: z.enum(['rascunho', 'aprovado', 'publicado']).optional() }, async ({ status }) => text(store.listar(status).map(({ id, tipo, titulo, status: s, sugestaoDeDia, agendadoPara, midiaUrls }) => ({ id, tipo, titulo, status: s, sugestaoDeDia, agendadoPara: agendadoPara ?? null, temMidia: Boolean(midiaUrls?.length) })))),
     tool('instagram_aprovar', 'Marca um rascunho como APROVADO pela Cris (só depois de ela dizer que aprova). Aprovar não publica.', { id: z.string() }, async ({ id }) => { const x = store.aprovar(id); log('tool', `instagram_aprovar ${id}`); return text(x ? { aprovado: x.id, titulo: x.titulo, aviso: 'Aprovado para uso. A publicação é feita por você, ou numa etapa futura, com confirmação.' } : 'Não encontrei esse rascunho.') }),
+    tool('instagram_aprovar_lote', 'Aprova VÁRIOS rascunhos de uma vez, só depois de a Cris dizer que aprova (ex.: "aprovo todos" do plano da semana). Passe os ids que ela aprovou; se ela disse "todos", use todos=true para os rascunhos ainda pendentes. Aprovar não publica.', { ids: z.array(z.string()).max(20).optional(), todos: z.boolean().optional() }, async ({ ids, todos }) => {
+      const alvo = todos ? store.listar('rascunho').map((x) => x.id) : (ids ?? [])
+      const r = store.aprovarLote(alvo); log('tool', `instagram_aprovar_lote ${r.filter((x) => x.ok).length}/${r.length}`)
+      return text({ resultados: r, aviso: 'Aprovados para a fila. Nada foi publicado.' })
+    }),
     tool('instagram_metricas_importar', 'Lê uma exportação do Instagram Insights (CSV/XLSX) que a Cris colocou em knowledge/instagram/entrada e calcula o ranking de engajamento. Só leitura da planilha.', { arquivo: z.string().describe('nome do arquivo dentro de knowledge/instagram/entrada') }, async ({ arquivo }) => {
       try { const r = importarMetricas(arquivo, store); log('tool', 'instagram_metricas_importar'); return text(r) } catch (e) { return text({ erro: String(e.message ?? e) }) }
     }),
