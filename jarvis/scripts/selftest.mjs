@@ -130,7 +130,7 @@ const ok0 = { id: 'a', tipo: 'post', status: 'aprovado', legenda: 'Oi', hashtags
 t('recusa rascunho não aprovado', /APROVADOS/.test(await rej({ ...ok0, status: 'rascunho' })))
 t('recusa sem mídia e mídia não-https', /não tem mídia/.test(await rej({ ...ok0, midiaUrls: [] })) && /https/.test(await rej({ ...ok0, midiaUrls: ['http://x.com/a.jpg'] })))
 t('sem credenciais roda em SIMULAÇÃO e não chama a rede', (await PUB.publicarRascunho(ok0, { fetchFn: () => { throw new Error('rede!') } })).simulado === true)
-process.env.IG_ACCESS_TOKEN = 'TOKEN_FALSO_123456'; process.env.IG_USER_ID = '999'
+process.env.IG_ACCESS_TOKEN = 'TOKEN_FALSO_123456'; process.env.IG_USER_ID = '999'; process.env.IG_EXPECTED_USERNAME = '@Cris'
 const chamadas = []
 const fakeFetch = async (url, opt = {}) => {
   const corpo = String(opt.body ?? '') + ' ' + url
@@ -143,7 +143,7 @@ const fakeFetch = async (url, opt = {}) => {
   return base({ error: { message: 'falhou com TOKEN_FALSO_123456' } }, 400)
 }
 const rPost = await PUB.publicarRascunho(ok0, { fetchFn: fakeFetch })
-t('post: cria contêiner e publica (2 chamadas) com legenda+hashtags', rPost.idMidia === 'PUB1' && chamadas.length === 2 && chamadas[0].corpo.includes('caption=Oi') && chamadas[0].corpo.includes('%23viagem'))
+t('post: cria contêiner e publica (2 chamadas) com legenda+hashtags', rPost.idMidia === 'PUB1' && chamadas.length === 3 && chamadas.some((c) => c.corpo.includes('caption=Oi') && c.corpo.includes('%23viagem')))
 chamadas.length = 0
 const rReel = await PUB.publicarRascunho({ ...ok0, tipo: 'reel', midiaUrls: ['https://exemplo.com/v.mp4'] }, { fetchFn: fakeFetch, dormir: async () => {} })
 t('reel: REELS + espera processar + publica', rReel.idMidia === 'PUB1' && chamadas.some((c) => c.corpo.includes('media_type=REELS')) && chamadas.some((c) => /status_code/.test(c.url)))
@@ -159,8 +159,46 @@ t('verificar conexão mostra usuário e não o token', conn.ok === true && conn.
 const fakeContas = async () => ({ ok: true, status: 200, json: async () => ({ data: [{ name: 'Página X', instagram_business_account: { id: '123', username: 'cris' } }, { name: 'Sem IG' }] }) })
 const dc = await PUB.descobrirContas(fakeContas)
 t('descobrir contas lista Página, @ e ID, sem token', dc.length === 2 && dc[0].instagramUserId === '123' && dc[1].instagramUserId === null && !JSON.stringify(dc).includes('TOKEN_FALSO'))
+process.env.IG_EXPECTED_USERNAME = 'outra.conta'
+chamadas.length = 0
+const msgConta = await (async () => { try { await PUB.publicarRascunho(ok0, { fetchFn: fakeFetch }) } catch (e) { return String(e.message) } })()
+t('NUNCA publica em outra conta: confere o @ antes de criar mídia', /Conta incorreta/.test(msgConta ?? '') && !chamadas.some((c) => /media|media_publish/.test(c.url) && !/\?/.test(c.url)))
+t('conexão indica se a conta é a oficial', (await PUB.verificarConexao(fakeFetch)).contaOficial === false)
+delete process.env.IG_EXPECTED_USERNAME
 delete process.env.IG_ACCESS_TOKEN; delete process.env.IG_USER_ID
 t('sem credenciais a conexão diz como configurar', (await PUB.verificarConexao()).configurado === false)
+
+// ---- unidade: diretor de marketing + VIDEO_FACTORY -------------------------
+const MK = await import('../bridge/marketing.mjs')
+const VF = await import('../bridge/video-factory.mjs')
+console.log('\n[diretor de marketing]')
+const mkTmp = mkdtempSync(join(tmpdir(), 'mk-')); const mkSt = IG.createStore(join(mkTmp, 'instagram')); const mkMk = MK.createMarketingStore(mkTmp)
+const hojeStr = new Date().toISOString().slice(0, 10)
+const mk_r1 = mkSt.salvar({ tipo: 'reel', titulo: 'Reel de hoje', legenda: 'Salve este Reel', roteiro: 'cena 1', agendadoPara: `${hojeStr} 20:00` })
+const mk_p0 = MK.painel({ store: mkSt, mk: mkMk, agora: new Date(`${hojeStr}T10:00:00-03:00`), env: {} })
+t('painel: conteúdo de hoje vem dos rascunhos reais', mk_p0.conteudoDeHoje.length === 1 && mk_p0.conteudoDeHoje[0].id === mk_r1.id && mk_p0.conta === 'cristianogeraldo.ofc')
+t('painel sem métricas diz "Não tenho esse dado disponível" e não inventa', mk_p0.desempenho.disponivel === false && mk_p0.seguidoresGanhos.disponivel === false && /Não tenho dados/.test(mk_p0.recomendacao) && mk_p0.melhoresConteudos.length === 0)
+t('painel mostra a próxima ação da agenda', /^(07|08|12|18|20|23)/.test(mk_p0.proximaAcao) && mk_p0.agenda.length === 9)
+t('agenda: depois das 23:30 a próxima é amanhã', MK.proximaAcao(new Date('2026-10-08T23:45:00')).amanha === true)
+t('DIRECTOR_AUTONOMOUS não publica sozinho: cai em revisão e avisa', MK.modoDiretor({ MARKETING_DIRECTOR_MODE: 'true', DIRECTOR_AUTONOMOUS: 'true' }).modo === 'revisao' && !!MK.modoDiretor({ DIRECTOR_AUTONOMOUS: 'true' }).aviso)
+const mk_rev = MK.revisarRascunho({ id: 'x', tipo: 'reel', titulo: 'Renda extra garantida com 30% a mais', legenda: 'Os clientes da Vila Dia compraram', roteiro: 'segredo', hashtags: [] })
+t('revisão pega promessa financeira, termo interno, número sem fonte, coach e falta de CTA', mk_rev.avisos.length >= 5 && !mk_rev.aprovadoParaPublicar)
+t('revisão aprova conteúdo limpo (CTA, sem termos internos)', MK.revisarRascunho({ id: 'y', tipo: 'post', titulo: 'Clareza antes de cobrança', legenda: 'Líder que explica antes de cobrar constrói confiança. Salve para reler.', hashtags: ['lideranca'] }).aprovadoParaPublicar === true)
+mkMk.aprendizado({ proximoPasso: 'Testar gancho com pergunta' }); mkMk.campanha({ nome: 'Legado', objetivo: 'autoridade' })
+t('aprendizados e campanhas ficam registrados', mkMk.ler().aprendizados.length === 1 && mkMk.ler().campanhas.length === 1)
+t('quebra de texto respeita o limite por linha', VF.quebrar('Líder de verdade não grita e cria clareza', 12).every((l) => l.length <= 12))
+const mk_ff = await VF.detectarFfmpeg()
+if (mk_ff.ok && VF.acharFonte()) {
+  const vOut = join(mkTmp, 'videos')
+  const mk_v = await VF.produzirVideo({ titulo: 'Liderança é legado', campanha: 'Teste', cta: 'Salve e compartilhe', cenas: [{ texto: 'Líder de verdade não grita.' }, { texto: 'Cria clareza e entrega exemplo.', duracao: 3 }], base: vOut })
+  t('VIDEO_FACTORY: MP4 9:16 H.264 com áudio existe e foi validado', mk_v.ok === true && mk_v.existe === true && mk_v.validacao.resolucao === '1080x1920' && mk_v.validacao.codec === 'h264' && mk_v.validacao.audio === true)
+  t('VIDEO_FACTORY: capa e legendas existem e a pasta é por data/campanha', existsSync(mk_v.arquivos.capa) && existsSync(mk_v.arquivos.legendas) && mk_v.arquivos.video.includes(`${hojeStr}`) && mk_v.arquivos.video.includes('teste'))
+  const mk_bad = await VF.validarVideo(join(mkTmp, 'nao-existe.mp4'))
+  t('validação de arquivo inexistente nunca finge sucesso', mk_bad.ok === false && mk_bad.existe === false)
+  const mk_out = await VF.produzirVideo({ titulo: 'x', cenas: [{ texto: 'a', imagem: '../../../../etc/passwd' }], base: vOut })
+  t('VIDEO_FACTORY só lê imagens da pasta de entrada', mk_out.ok === false && /Por segurança|não encontrado/i.test(mk_out.motivo ?? ''))
+} else console.log('  ⏭  VIDEO_FACTORY ao vivo — FFmpeg/fonte não encontrados neste computador')
+rmSync(mkTmp, { recursive: true, force: true })
 
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')

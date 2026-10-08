@@ -7,6 +7,7 @@ import { Effects } from './Effects'
 import { Pointer } from './Pointer'
 import { GestureGuide } from './GestureGuide'
 import { Intelligence } from './Intelligence'
+import { Marketing } from './Marketing'
 
 const statusText: Record<Phase, string> = {
   offline: 'OFFLINE',
@@ -234,6 +235,7 @@ export function Hud() {
         </div>
         <div className="rail-item mono">{(level * 100).toFixed(0).padStart(3, '0')}%</div>
         {ui.chrome.systems && <Intelligence />}
+        {ui.chrome.systems && <Marketing />}
       </aside>
 
       <AnimatePresence>

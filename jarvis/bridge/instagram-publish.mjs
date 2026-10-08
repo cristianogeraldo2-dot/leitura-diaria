@@ -13,6 +13,7 @@ import { createStore } from './instagram.mjs'
 const VERSAO = () => process.env.IG_GRAPH_VERSION || 'v21.0'
 const BASE = () => `https://graph.facebook.com/${VERSAO()}`
 const cred = () => ({ token: process.env.IG_ACCESS_TOKEN || '', uid: process.env.IG_USER_ID || '' })
+export const contaEsperada = () => String(process.env.IG_EXPECTED_USERNAME || 'cristianogeraldo.ofc').replace(/^@/, '').toLowerCase()
 export const configurado = () => Boolean(cred().token && cred().uid)
 
 const text = (t) => ({ content: [{ type: 'text', text: typeof t === 'string' ? t : JSON.stringify(t, null, 2) }] })
@@ -32,7 +33,7 @@ export async function verificarConexao(fetchFn = fetch) {
   if (!configurado()) return { configurado: false, comoConfigurar: 'Defina IG_ACCESS_TOKEN e IG_USER_ID em jarvis-secrets.cmd (ver INSTAGRAM.md).' }
   try {
     const j = await graph(fetchFn, 'GET', `/${cred().uid}`, { fields: 'username,account_type' })
-    return { configurado: true, ok: true, usuario: j.username ?? null, tipoDeConta: j.account_type ?? null }
+    return { configurado: true, ok: true, usuario: j.username ?? null, tipoDeConta: j.account_type ?? null, contaOficial: String(j.username ?? '').toLowerCase() === contaEsperada(), contaEsperada: contaEsperada() }
   } catch (e) { return { configurado: true, ok: false, erro: String(e.message) } }
 }
 
@@ -62,8 +63,12 @@ export async function publicarRascunho(item, { fetchFn = fetch, dormir } = {}) {
   if (!urls.every(https)) throw new Error('Todas as mídias precisam ser URLs https públicas.')
   const legenda = [item.legenda ?? '', (item.hashtags ?? []).map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' ')].filter(Boolean).join('\n\n')
   const ehVideo = (u) => /\.(mp4|mov)(\?|$)/i.test(u)
+  if (item.tipo === 'carrossel' && urls.length < 2) throw new Error('Carrossel precisa de pelo menos 2 mídias.')
   if (!configurado()) return { simulado: true, tipo: item.tipo, midias: urls.length, aviso: 'Sem IG_ACCESS_TOKEN/IG_USER_ID: nada foi enviado ao Instagram.' }
   const uid = cred().uid
+  // Nunca publicar em outra conta: confere o @ do token com a conta oficial ANTES de criar qualquer mídia.
+  const quem = await graph(fetchFn, 'GET', `/${uid}`, { fields: 'username' })
+  if (String(quem.username ?? '').toLowerCase() !== contaEsperada()) throw new Error(`Conta incorreta: o token pertence a @${quem.username ?? 'desconhecida'}, mas só publico em @${contaEsperada()}. Nada foi enviado.`)
   let container
   if (item.tipo === 'carrossel') {
     if (urls.length < 2) throw new Error('Carrossel precisa de pelo menos 2 mídias.')

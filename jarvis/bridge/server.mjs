@@ -28,6 +28,7 @@ import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
 import { socialServer } from './instagram-publish.mjs'
+import { painel as marketingPainel } from './marketing.mjs'
 import { opsServer, operationInsight, findDashboard, backupDashboard, diagnostics, statusSummary } from './ops.mjs'
 import { PERSONA_PT, detectMode, setMode, getMode, modeTag, isConfirmation, confirmPending, notePending, noteAwaiting, consumeGrant } from './persona.mjs'
 import { log } from './home.mjs'
@@ -744,6 +745,10 @@ const handleRequest = async (req, res) => {
   if (req.method === 'GET' && req.url === '/jarvis/insight') {
     res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(operationInsight()))
+  }
+  if (req.method === 'GET' && req.url === '/jarvis/marketing') {
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
+    return res.end(JSON.stringify(marketingPainel()))
   }
   if (req.method === 'GET' && req.url === '/jarvis/diagnostics') {
     res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })

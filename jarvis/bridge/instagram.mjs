@@ -52,6 +52,12 @@ export function createStore(dir = IG_DIR) {
       writeFileSync(f, JSON.stringify(x, null, 2))
       return { id, ok: true, titulo: x.titulo, tipo: x.tipo, agendadoPara: x.agendadoPara ?? null, temMidia: Boolean(x.midiaUrls?.length) }
     }),
+    anexar: (id, campos) => {
+      const f = join(rascD, `${String(id).replace(/[^\w-]/g, '')}.json`)
+      const x = existsSync(f) ? readJ(f, null) : null
+      if (!x) return null
+      Object.assign(x, campos); writeFileSync(f, JSON.stringify(x, null, 2)); return x
+    },
     registrarFalha: (id, motivo) => {
       const f = join(rascD, `${String(id).replace(/[^\w-]/g, '')}.json`)
       const x = readJ(f, null)
@@ -114,6 +120,7 @@ export function rankPosts({ headers, rows }, n = 5) {
     posts: itens.length,
     comoCalculado: 'taxa = (curtidas + 2×comentários + 3×salvamentos + 3×compartilhamentos) ÷ alcance (ou visualizações), em %',
     melhores: top,
+    pior: [...com].sort((a, b) => a.taxaEngajamento - b.taxaEngajamento)[0] ?? null,
     mediaPorTipo: mediaTipo,
     avisos: [
       ...(idx.alcance < 0 && idx.views < 0 ? ['Sem coluna de alcance/visualizações: não dá para calcular taxa de engajamento.'] : []),
@@ -141,7 +148,7 @@ export function instagramTools(store = createStore()) {
     tool('instagram_rascunho_salvar', 'Guarda um rascunho de conteúdo (post, carrossel, reel ou story) em knowledge/instagram. NÃO publica nada. Reel: gancho nos 3 primeiros segundos, roteiro por cena, texto na tela, CTA. Story: sequência de quadros com interação. Post: legenda, texto da arte, hashtags.', {
       tipo: z.enum(['post', 'carrossel', 'reel', 'story']), titulo: z.string().min(2).max(120), legenda: z.string().max(2200).optional(),
       roteiro: z.string().max(4000).optional(), textoNaArte: z.string().max(1500).optional(), hashtags: z.array(z.string()).max(30).optional(),
-      objetivo: z.string().max(300).optional(), sugestaoDeDia: z.string().max(80).optional(),
+      objetivo: z.string().max(300).optional(), campanha: z.string().max(60).optional(), sugestaoDeDia: z.string().max(80).optional(),
       agendadoPara: z.string().max(40).optional().describe('data/hora sugerida para o post sair (ex.: 2026-10-12 18:30). É só sugestão: a publicação só acontece quando a Cris confirma'),
       midiaUrls: z.array(z.string().url()).max(10).optional().describe('URLs https PÚBLICAS da imagem/vídeo, necessárias só para publicar pela API'),
     }, async (d) => { const x = store.salvar(JSON.parse(redact(JSON.stringify(d)))); log('tool', `instagram_rascunho_salvar ${d.tipo}`); return text({ salvo: true, id: x.id, status: x.status, aviso: 'Rascunho guardado. Nada foi publicado.' }) }),

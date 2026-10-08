@@ -31,3 +31,15 @@ Não será usada automação de navegador no site do Instagram (viola os termos 
 6. Peça "Jarvis, verifique a conexão do Instagram" (só leitura).
 Tokens de usuário expiram (curtos em minutos/horas; os de longa duração em ~60 dias): será preciso renová-los.
 Publicar: só rascunho **aprovado** com `midiaUrls` https públicas; sempre com "Confirma, Cris?".
+
+## Diretor de marketing (@cristianogeraldo.ofc)
+
+O JARVIS age como diretor de marketing da marca pessoal: **analisa → estrategiza → cria → revisa → (você confirma) publica → mede → aprende**. Tudo usa o que já existe (perfil, rascunhos, métricas, publicação oficial).
+
+**Voz** (modo conteúdo entra sozinho): "qual é a estratégia de hoje?", "crie o Reel de hoje", "produza o vídeo", "revise o conteúdo", "publique o Reel", "analise o Instagram", "qual conteúdo performou melhor?", "monte a estratégia da próxima semana".
+
+**Ferramentas novas:** `marketing_painel`, `marketing_revisar`, `marketing_campanha_definir`, `marketing_aprendizado_registrar`, `video_ffmpeg`, `video_produzir`, `video_validar`. Painel na tela: **DIRETOR DE MARKETING** (`/jarvis/marketing`).
+
+**VIDEO_FACTORY** (precisa do FFmpeg no PC; não é instalado sozinho): gera MP4 9:16 H.264/AAC com texto na tela e CTA, capa PNG e legendas SRT em `knowledge/instagram/videos/AAAA-MM-DD/campanha/`. Só é dado como gerado se o arquivo existir e passar na validação (ffprobe). Imagens e trilha só de `knowledge/instagram/entrada`.
+
+**Segurança:** só publica em `@cristianogeraldo.ofc` (confere o @ do token antes de qualquer envio; troque com `IG_EXPECTED_USERNAME`). Publicar exige rascunho aprovado, URL https pública da mídia e o seu "confirmo". `DIRECTOR_AUTONOMOUS` **não** publica sozinho: cai em revisão. Horários do dia em `config/marketing-agenda.json` (`[{"hora":"07:00","tarefa":"..."}]`).

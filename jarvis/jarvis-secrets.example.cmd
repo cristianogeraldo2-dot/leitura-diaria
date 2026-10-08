@@ -16,3 +16,8 @@ rem  Instagram (publicacao pela API oficial). Preencha SO no seu computador; nun
 rem  IG_ACCESS_TOKEN: token de acesso do app Meta. IG_USER_ID: id da conta profissional do Instagram.
 set "IG_ACCESS_TOKEN="
 set "IG_USER_ID="
+rem  Conta oficial: o JARVIS só publica nesta conta (confere o @ do token antes de qualquer envio).
+set "IG_EXPECTED_USERNAME=cristianogeraldo.ofc"
+rem  Diretor de marketing (opcional). Publicar SEMPRE exige o seu 'confirmo'.
+set "MARKETING_DIRECTOR_MODE=true"
+rem  Fonte para o texto na tela dos vídeos (opcional): set "JARVIS_FONT=C:\Windows\Fonts\arialbd.ttf"
