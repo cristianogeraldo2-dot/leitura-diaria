@@ -138,7 +138,8 @@ body::after {
   font-size: 10px;
 }
 .rail-left { left: 92px; }
-.rail-right { right: 92px; align-items: flex-end; }
+.rail-right { right: 92px; align-items: flex-end; max-height: calc(100vh - 48px); overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.rail-right::-webkit-scrollbar { display: none; }
 
 .rail-title {
   font-size: 8px;

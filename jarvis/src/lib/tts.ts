@@ -536,11 +536,15 @@ export function createSpeaker(): Speaker {
         // Chrome stops speaking after roughly fifteen seconds unless the engine
         // is nudged. A pause/resume pair is the standard keepalive and is
         // inaudible; without it long answers cut off mid-sentence.
-        keepalive = setInterval(() => {
-          if (done) return
-          speechSynthesis.pause()
-          speechSynthesis.resume()
-        }, 5000)
+        // Só para vozes de rede: em vozes locais do Windows (ex.: Microsoft Daniel) o
+        // pause/resume corta o fim da frase, e elas não têm o limite de 15 s.
+        if (u.voice?.localService === false) {
+          keepalive = setInterval(() => {
+            if (done) return
+            speechSynthesis.pause()
+            speechSynthesis.resume()
+          }, 5000)
+        }
       }
       u.onend = finish
       // Swallowing this was a mistake. When the OS voice fails there is no

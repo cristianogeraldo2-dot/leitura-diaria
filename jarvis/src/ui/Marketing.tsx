@@ -29,6 +29,7 @@ const fmt = (v?: string | null) => (v ? v.replace('T', ' ').slice(0, 16) : 'sem 
 
 export function Marketing() {
   const [p, setP] = useState<Painel | null>(null)
+  const [aberto, setAberto] = useState(false)
   useEffect(() => {
     let live = true
     const pull = async () => {
@@ -52,11 +53,16 @@ export function Marketing() {
   const des = p?.desempenho
   return (
     <div className="intel" aria-label="DIRETOR DE MARKETING" style={{ marginTop: 14, textAlign: 'right' }}>
-      <div className="rail-title">DIRETOR DE MARKETING</div>
+      <div className="rail-title" style={{ cursor: 'pointer', pointerEvents: 'auto' }} onClick={() => setAberto((v) => !v)} title="Clique para abrir ou fechar">
+        DIRETOR DE MARKETING {aberto ? '▾' : '▸'}
+      </div>
       {!p && <div className="rail-item dim">Aguardando a bridge…</div>}
       {p && (
         <>
           <div className="rail-item dim">@{p.conta} · {p.modoDiretor.modo === 'revisao' ? 'REVISÃO (você confirma)' : p.modoDiretor.modo}</div>
+          <div className="rail-item" style={box}>PRÓXIMA AÇÃO: {p.proximaAcao}</div>
+          {aberto && (
+            <>
           <div className="rail-item" style={box}>HOJE: {hoje.length ? hoje.map((c) => `${c.tipo} “${c.titulo}” ${fmt(c.agendadoPara).slice(11)} [${c.status}]`).join(' · ') : 'nada agendado'}</div>
           <div className="rail-item" style={box}>PRÓXIMO: {p.proximoConteudo ? `${p.proximoConteudo.tipo} “${p.proximoConteudo.titulo}” ${fmt(p.proximoConteudo.agendadoPara)}` : 'nenhum'}</div>
           <div className="rail-item">PRODUÇÃO: {p.producao.rascunhos} rascunho · {p.producao.aprovados} aprovado · {p.producao.publicados} publicado · {p.producao.semMidia} sem mídia</div>
@@ -67,8 +73,9 @@ export function Marketing() {
           <div className="rail-item" style={box}>MELHOR: {p.melhoresConteudos[0] ? `${p.melhoresConteudos[0].tipo ?? 'post'} · ${p.melhoresConteudos[0].taxaEngajamento}%` : ND}</div>
           <div className="rail-item" style={box}>PIOR: {p.piorConteudo ? `${p.piorConteudo.tipo ?? 'post'} · ${p.piorConteudo.taxaEngajamento}%` : ND}</div>
           <div className="rail-item" style={box} title={p.recomendacao}>RECOMENDAÇÃO: {p.recomendacao}</div>
-          <div className="rail-item" style={box}>PRÓXIMA AÇÃO: {p.proximaAcao}</div>
           {p.modoDiretor.aviso && <div className="rail-item dim" style={box}>{p.modoDiretor.aviso}</div>}
+            </>
+          )}
         </>
       )}
     </div>
