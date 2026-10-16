@@ -82,6 +82,18 @@ export function revisarRascunho(x) {
   return { id: x.id, titulo: x.titulo, aprovadoParaPublicar: av.filter((a) => !/Sem mídia/.test(a)).length === 0, avisos: av }
 }
 
+/** Importa rascunhos de um arquivo JSON (lista). Não duplica (mesmo título + campanha) e nunca publica. */
+export function importarRascunhos(lista, store = createStore()) {
+  const TIPOS = ['post', 'carrossel', 'reel', 'story']
+  const existentes = new Set(store.listar().map((x) => `${x.titulo}|${x.campanha ?? ''}`))
+  return (Array.isArray(lista) ? lista : []).map((d) => {
+    if (!d || !TIPOS.includes(d.tipo) || typeof d.titulo !== 'string' || d.titulo.length < 2) return { titulo: d?.titulo ?? '(sem título)', ok: false, motivo: 'tipo ou título inválido' }
+    if (existentes.has(`${d.titulo}|${d.campanha ?? ''}`)) return { titulo: d.titulo, ok: false, motivo: 'já importado' }
+    const x = store.salvar(JSON.parse(redact(JSON.stringify(d))))
+    return { titulo: d.titulo, ok: true, id: x.id, tipo: x.tipo, agendadoPara: x.agendadoPara ?? null, revisao: revisarRascunho(x).avisos }
+  })
+}
+
 /** Painel do diretor: só dados reais. */
 export function painel({ store = createStore(), mk = createMarketingStore(), agora = new Date(), env = process.env, ag = agenda() } = {}) {
   const rasc = store.listar()
