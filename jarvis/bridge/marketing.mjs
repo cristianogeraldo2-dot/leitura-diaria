@@ -85,10 +85,16 @@ export function revisarRascunho(x) {
 /** Importa rascunhos de um arquivo JSON (lista). Não duplica (mesmo título + campanha) e nunca publica. */
 export function importarRascunhos(lista, store = createStore()) {
   const TIPOS = ['post', 'carrossel', 'reel', 'story']
-  const existentes = new Set(store.listar().map((x) => `${x.titulo}|${x.campanha ?? ''}`))
   return (Array.isArray(lista) ? lista : []).map((d) => {
     if (!d || !TIPOS.includes(d.tipo) || typeof d.titulo !== 'string' || d.titulo.length < 2) return { titulo: d?.titulo ?? '(sem título)', ok: false, motivo: 'tipo ou título inválido' }
-    if (existentes.has(`${d.titulo}|${d.campanha ?? ''}`)) return { titulo: d.titulo, ok: false, motivo: 'já importado' }
+    const igual = store.listar().find((x) => x.titulo === d.titulo && (x.campanha ?? '') === (d.campanha ?? ''))
+    if (igual) {
+      if (igual.status !== 'publicado' && d.agendadoPara && igual.agendadoPara !== d.agendadoPara) {
+        store.anexar(igual.id, { agendadoPara: d.agendadoPara, sugestaoDeDia: d.sugestaoDeDia ?? igual.sugestaoDeDia })
+        return { titulo: d.titulo, ok: false, motivo: `horário atualizado para ${d.agendadoPara}`, id: igual.id }
+      }
+      return { titulo: d.titulo, ok: false, motivo: 'já importado' }
+    }
     const x = store.salvar(JSON.parse(redact(JSON.stringify(d))))
     return { titulo: d.titulo, ok: true, id: x.id, tipo: x.tipo, agendadoPara: x.agendadoPara ?? null, revisao: revisarRascunho(x).avisos }
   })
