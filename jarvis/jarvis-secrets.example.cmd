@@ -21,3 +21,7 @@ set "IG_EXPECTED_USERNAME=cristianogeraldo.ofc"
 rem  Diretor de marketing (opcional). Publicar SEMPRE exige o seu 'confirmo'.
 set "MARKETING_DIRECTOR_MODE=true"
 rem  Fonte para o texto na tela dos vídeos (opcional): set "JARVIS_FONT=C:\Windows\Fonts\arialbd.ttf"
+rem  PILOTO AUTOMATICO (desligado por padrao). Com 1, publica sozinho SO o que voce APROVOU, no horario, com midia https.
+rem  Limite por dia: JARVIS_IG_AUTOPOST_MAX_DIA (1 a 5, padrao 3). Para parar na hora: crie o arquivo config\PARAR-INSTAGRAM.
+set "JARVIS_IG_AUTOPOST=0"
+set "JARVIS_IG_AUTOPOST_MAX_DIA=3"

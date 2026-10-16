@@ -22,16 +22,17 @@ import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
 import { homedir, tmpdir } from 'node:os'
-import { readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
-import { socialServer } from './instagram-publish.mjs'
+import { socialServer, rodarAgendador } from './instagram-publish.mjs'
+import { createStore as igStore } from './instagram.mjs'
 import { painel as marketingPainel } from './marketing.mjs'
 import { opsServer, operationInsight, findDashboard, backupDashboard, diagnostics, statusSummary } from './ops.mjs'
 import { PERSONA_PT, detectMode, setMode, getMode, modeTag, isConfirmation, confirmPending, notePending, noteAwaiting, consumeGrant } from './persona.mjs'
-import { log } from './home.mjs'
+import { log, DIRS } from './home.mjs'
 
 const PORT = Number(process.env.JARVIS_BRIDGE_PORT ?? 8787)
 
@@ -1099,6 +1100,15 @@ const wss = new WebSocketServer({
 // authentication — anything else on the network can send whatever Origin it
 // likes — so the bridge must not be reachable from another machine at all.
 server.listen(PORT, '127.0.0.1')
+// Piloto automático do Instagram: DESLIGADO por padrão. Só liga com JARVIS_IG_AUTOPOST=1 (jarvis-secrets.cmd).
+if (process.env.JARVIS_IG_AUTOPOST === '1') {
+  const igSt = igStore()
+  const parar = () => existsSync(join(DIRS.config, 'PARAR-INSTAGRAM'))
+  log('instagram', 'piloto automático LIGADO: publica só rascunhos aprovados e já no horário')
+  const ciclo = () => rodarAgendador(igSt, { parar }).catch((e) => log('instagram', `autopost erro ${String(e.message).slice(0, 120)}`))
+  setTimeout(ciclo, 30_000)
+  setInterval(ciclo, 5 * 60 * 1000)
+}
 
 console.log(`[jarvis] bridge listening on ws://localhost:${PORT}`)
 log('startup', `bridge port=${PORT} model=${MODEL} writes=${ALLOW_WRITES} mode=${getMode()}`)

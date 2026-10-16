@@ -43,3 +43,13 @@ O JARVIS age como diretor de marketing da marca pessoal: **analisa → estrategi
 **VIDEO_FACTORY** (precisa do FFmpeg no PC; não é instalado sozinho): gera MP4 9:16 H.264/AAC com texto na tela e CTA, capa PNG e legendas SRT em `knowledge/instagram/videos/AAAA-MM-DD/campanha/`. Só é dado como gerado se o arquivo existir e passar na validação (ffprobe). Imagens e trilha só de `knowledge/instagram/entrada`.
 
 **Segurança:** só publica em `@cristianogeraldo.ofc` (confere o @ do token antes de qualquer envio; troque com `IG_EXPECTED_USERNAME`). Publicar exige rascunho aprovado, URL https pública da mídia e o seu "confirmo". `DIRECTOR_AUTONOMOUS` **não** publica sozinho: cai em revisão. Horários do dia em `config/marketing-agenda.json` (`[{"hora":"07:00","tarefa":"..."}]`).
+
+## Piloto automático (opcional, desligado por padrão)
+
+Liga com `set "JARVIS_IG_AUTOPOST=1"` no `jarvis-secrets.cmd` e reinicie. A cada 5 minutos o JARVIS publica **somente**:
+- rascunhos que você **aprovou** (`aprovo todos` / `instagram_aprovar_lote`),
+- com `agendadoPara` já vencido (até 36 h atrás; sem fuso = horário de Brasília),
+- com mídia em URL **https pública**,
+- e com a conta conferida como `@cristianogeraldo.ofc` em cada envio.
+
+Limites: máx. `JARVIS_IG_AUTOPOST_MAX_DIA` por dia (1 a 5, padrão 3); 2 falhas e o item sai da fila; nunca simula; tudo vai para o log (sem token). **Para parar na hora:** crie o arquivo vazio `config\PARAR-INSTAGRAM` ou ponha `JARVIS_IG_AUTOPOST=0` e reinicie. Precisa de `IG_ACCESS_TOKEN` e `IG_USER_ID` válidos.

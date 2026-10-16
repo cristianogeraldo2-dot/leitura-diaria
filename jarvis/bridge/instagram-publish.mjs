@@ -92,6 +92,51 @@ export async function publicarRascunho(item, { fetchFn = fetch, dormir } = {}) {
   return { simulado: false, tipo: item.tipo, idMidia: pub.id }
 }
 
+/** Publica vários rascunhos APROVADOS em sequência; um erro não derruba os demais. Máximo de 10 por vez. */
+export async function publicarLote(store, ids, opts = {}) {
+  const out = []
+  for (const id of [...new Set(ids)].slice(0, 10)) {
+    try {
+      const r = await publicarRascunho(store.obter(id), opts)
+      if (!r.simulado) store.marcarPublicado(id, r)
+      out.push({ id, ok: true, simulado: r.simulado, idMidia: r.idMidia ?? null })
+    } catch (e) { store.registrarFalha(id, e.message ?? e); out.push({ id, ok: false, erro: String(e.message ?? e) }) }
+  }
+  return out
+}
+
+// ---- Piloto automático: DESLIGADO por padrão. Liga com JARVIS_IG_AUTOPOST=1 em jarvis-secrets.cmd ----
+const JANELA_MS = 36 * 3600 * 1000
+const MAX_FALHAS = 2
+const maxPorDia = () => Math.max(1, Math.min(5, Number(process.env.JARVIS_IG_AUTOPOST_MAX_DIA) || 3))
+/** Datas sem fuso são lidas como horário de Brasília (-03:00). */
+export const horario = (v) => {
+  const t = String(v ?? '').trim()
+  if (!t) return NaN
+  return Date.parse(/(z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}-03:00`)
+}
+/** Só o que a Cris APROVOU, com horário já vencido (até 36 h), mídia https e poucas falhas. */
+export function devidos(store, agora = new Date()) {
+  return store.listar('aprovado').filter((x) => {
+    const t = horario(x.agendadoPara)
+    return Number.isFinite(t) && t <= agora.getTime() && agora.getTime() - t <= JANELA_MS && (x.falhas ?? 0) < MAX_FALHAS && (x.midiaUrls ?? []).length && x.midiaUrls.every(https)
+  }).sort((a, b) => horario(a.agendadoPara) - horario(b.agendadoPara))
+}
+/** Nunca simula, respeita o limite diário e o arquivo config/PARAR-INSTAGRAM. A conta oficial é conferida em cada envio. */
+export async function rodarAgendador(store, opts = {}) {
+  const agora = opts.agora ?? new Date()
+  if (!configurado()) return { ativo: false, motivo: 'sem credenciais' }
+  if (opts.parar?.()) return { ativo: false, motivo: 'PARAR-INSTAGRAM encontrado' }
+  const hoje = agora.toISOString().slice(0, 10)
+  const vaga = maxPorDia() - store.listar('publicado').filter((x) => String(x.publicadoEm ?? '').slice(0, 10) === hoje).length
+  if (vaga <= 0) return { ativo: true, publicados: [], motivo: 'limite diário atingido' }
+  const fila = devidos(store, agora).slice(0, vaga)
+  if (!fila.length) return { ativo: true, publicados: [] }
+  const r = await publicarLote(store, fila.map((x) => x.id), opts)
+  for (const x of r) log('instagram', `autopost ${x.id} ok=${x.ok}`)
+  return { ativo: true, publicados: r }
+}
+
 /** Servidor MCP separado: NÃO entra na lista liberada de decideTool, então exige confirmação por voz. */
 export function socialServer(store = createStore()) {
   return createSdkMcpServer({
