@@ -55,13 +55,13 @@ export function quebrar(t, max = 20) {
   return linhas.slice(0, 8)
 }
 
-function filtroTexto(linhas, fonte, wd, { tam = 76, y0 = 0.42, nome = 't' } = {}) {
+function filtroTexto(linhas, fonte, wd, { tam = 76, y0 = 0.42, nome = 't', cor = 'white' } = {}) {
   const passo = Math.round(tam * 1.35)
   const total = linhas.length * passo
   return linhas.map((l, i) => {
     const arq = `${nome}${i}.txt`
     writeFileSync(join(wd, arq), l, 'utf8')
-    return `drawtext=fontfile='${esc(fonte)}':textfile='${arq}':fontsize=${tam}:fontcolor=white:borderw=4:bordercolor=black@0.55:x=(w-text_w)/2:y=${Math.round(H * y0 - total / 2 + i * passo)}`
+    return `drawtext=fontfile='${esc(fonte)}':textfile='${arq}':fontsize=${tam}:fontcolor=${cor}:borderw=4:bordercolor=black@0.55:x=(w-text_w)/2:y=${Math.round(H * y0 - total / 2 + i * passo)}`
   }).join(',')
 }
 
@@ -131,8 +131,10 @@ export async function produzirVideo({ titulo, campanha = 'geral', cenas, cta, ca
     for (let i = 0; i < lista.length; i++) {
       const c = lista[i]
       const dur = Math.min(12, Math.max(1.5, Number(c.duracao) || 3.5))
-      const linhas = quebrar(c.texto, 20)
-      const texto = filtroTexto(linhas, fonte, wd, { nome: `c${i}_` })
+      const tam = Math.min(200, Math.max(40, Number(c.tamanho) || 76))
+      const cor = /^#?[0-9a-f]{6}$/i.test(c.corTexto ?? '') ? `0x${String(c.corTexto).replace('#', '')}` : 'white'
+      const linhas = quebrar(c.texto, Math.max(6, Math.floor(1520 / tam)))
+      const texto = filtroTexto(linhas, fonte, wd, { nome: `c${i}_`, tam, cor })
       const fade = `fade=t=in:st=0:d=0.3,fade=t=out:st=${(dur - 0.3).toFixed(2)}:d=0.3`
       const saida = `clip${i}.mp4`
       const entrada = c.imagem
@@ -176,7 +178,7 @@ export function videoTools(store = createStore()) {
     tool('video_ffmpeg', 'Verifica (só leitura) se o FFmpeg e a fonte de texto existem neste computador, para a VIDEO_FACTORY. Não instala nada.', {}, async () => text({ ffmpeg: await detectarFfmpeg(), fonte: acharFonte() ? 'ok' : 'não encontrada' })),
     tool('video_produzir', 'VIDEO_FACTORY: monta um MP4 vertical 9:16 (H.264/AAC) com cenas de texto na tela, CTA final, capa PNG e legendas SRT, salvos em knowledge/instagram/videos/AAAA-MM-DD/campanha. Só LOCAL: não publica nada. Cada cena: { texto curto, duracao em s (1,5–12), imagem opcional (arquivo em knowledge/instagram/entrada) }. Só diga que o vídeo foi gerado se o retorno trouxer existe=true e ok=true; relate os problemas da validação. Use texto autoral e sem dados internos da empresa, clientes ou funcionários.', {
       titulo: z.string().min(2).max(120), campanha: z.string().max(60).optional(), capaTexto: z.string().max(80).optional(), cta: z.string().max(80).optional(),
-      cenas: z.array(z.object({ texto: z.string().min(1).max(160), duracao: z.number().min(1.5).max(12).optional(), imagem: z.string().max(200).optional() })).min(1).max(20),
+      cenas: z.array(z.object({ texto: z.string().min(1).max(160), duracao: z.number().min(1.5).max(12).optional(), imagem: z.string().max(200).optional(), tamanho: z.number().min(40).max(200).optional().describe('tamanho da letra; use 130-180 para palavra gigante'), corTexto: z.string().max(7).optional().describe('cor hex do texto, ex. F5A623') })).min(1).max(20),
       trilha: z.string().max(200).optional().describe('arquivo de áudio em knowledge/instagram/entrada (opcional)'),
       rascunhoId: z.string().optional().describe('se informado, vincula o arquivo ao rascunho'),
     }, async ({ rascunhoId, ...p }) => {
