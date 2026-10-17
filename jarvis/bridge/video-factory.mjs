@@ -184,7 +184,8 @@ export async function produzirVideo({ titulo, campanha = 'geral', cenas, cta, ca
  * Artes estáticas 4:5 (1080x1350, PNG) para posts e carrosséis: um PNG por slide, texto grande sobre cor.
  * slides: [{ texto, tamanho?, corTexto?, rodape? }]. Só local; devolve só o que existe em disco.
  */
-export async function produzirImagens({ titulo, campanha = 'geral', slides, base = VIDEOS_DIR, data = new Date(), rodape = '@cristianogeraldo.ofc' }) {
+export async function produzirImagens({ titulo, campanha = 'geral', slides, formato = '4:5', base = VIDEOS_DIR, data = new Date(), rodape = '@cristianogeraldo.ofc' }) {
+  const ALT = formato === '9:16' ? H : 1350
   const ff = await detectarFfmpeg()
   if (!ff.ok) return { ok: false, motivo: 'FFmpeg não encontrado.', ...ff }
   const fonte = acharFonte()
@@ -202,9 +203,9 @@ export async function produzirImagens({ titulo, campanha = 'geral', slides, base
       const cor = /^#?[0-9a-f]{6}$/i.test(s.corTexto ?? '') ? `0x${String(s.corTexto).replace('#', '')}` : 'white'
       const texto = filtroTexto(quebrar(s.texto, Math.max(6, Math.floor(1500 / tam))), fonte, wd, { nome: `i${i}_`, tam, cor, y0: 0.45 })
       writeFileSync(join(wd, `r${i}.txt`), s.rodape ?? rodape, 'utf8')
-      const marca = `drawtext=fontfile='${esc(fonte)}':textfile='r${i}.txt':fontsize=34:fontcolor=white@0.55:x=(w-text_w)/2:y=h-110`
+      const marca = `drawtext=fontfile='${esc(fonte)}':textfile='r${i}.txt':fontsize=34:fontcolor=white@0.55:x=(w-text_w)/2:y=h-${formato === '9:16' ? 260 : 110}`
       const saida = join(pasta, `${String(i + 1).padStart(2, '0')}.png`)
-      await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `color=c=${cores[i % cores.length]}:s=${W}x1350`, '-vf', `${texto},${marca}`, '-frames:v', '1', 'img.png'], { cwd: wd })
+      await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `color=c=${cores[i % cores.length]}:s=${W}x${ALT}`, '-vf', `${texto},${marca}`, '-frames:v', '1', 'img.png'], { cwd: wd })
       copyFileSync(join(wd, 'img.png'), saida)
       arquivos.push(saida)
     }
@@ -234,6 +235,7 @@ export function videoTools(store = createStore()) {
     tool('imagem_produzir', 'Gera artes estáticas 4:5 (PNG 1080x1350) para post ou carrossel: um PNG por slide com texto grande e o @ no rodapé, em knowledge/instagram/videos/AAAA-MM-DD/campanha. Só LOCAL: não publica nada. Só diga que gerou se o retorno trouxer ok=true.', {
       titulo: z.string().min(2).max(120), campanha: z.string().max(60).optional(),
       slides: z.array(z.object({ texto: z.string().min(1).max(220), tamanho: z.number().min(40).max(200).optional(), corTexto: z.string().max(7).optional() })).min(1).max(10),
+      formato: z.enum(['4:5', '9:16']).optional().describe('4:5 para post e carrossel (padrão); 9:16 para quadros de story'),
     }, async (p) => text(await produzirImagens(p))),
     tool('video_validar', 'Valida um MP4 local para Reels (9:16, H.264, áudio, 3–90 s). Só leitura; o arquivo precisa estar em knowledge/instagram.', { arquivo: z.string().max(300) }, async ({ arquivo }) => {
       const alvo = resolve(isAbsolute(arquivo) ? arquivo : join(IG_DIR, arquivo))

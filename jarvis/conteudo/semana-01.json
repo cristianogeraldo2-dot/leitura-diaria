@@ -77,7 +77,7 @@
     "objetivo": "Conhecer o público real, gerar respostas e descobrir os temas dos próximos conteúdos.",
     "sugestaoDeDia": "domingo, 12h",
     "agendadoPara": "2026-10-18 12:00",
-    "roteiro": "Sequência de 5 quadros (fundo escuro, texto grande):\n\nQUADRO 1 - enquete: \"Qual é o seu maior desafio como líder hoje?\" Opções: Cobrar resultado / Dar feedback / Manter a equipe motivada / Organizar a rotina.\n\nQUADRO 2 - frase forte: \"Clareza antes de cobrança.\"\n\nQUADRO 3 - caixa de perguntas: \"Qual conversa difícil você está adiando? Responda aqui. Eu mostro como conduzir, sem citar nomes.\"\n\nQUADRO 4 - teste rápido (quiz): \"O feedback correto começa por...\" Fato / Opinião.\n\nQUADRO 5 - convite: \"Se esse conteúdo ajuda você, siga o perfil e compartilhe este story com um líder.\"",
+    "roteiro": "Sequência de 5 quadros (fundo escuro, texto grande):\n\nQUADRO 1 - enquete (2 opções): \"Qual é o seu maior desafio como líder hoje?\" Opções: Cobrar resultado / Dar feedback.\n\nQUADRO 2 - frase forte: \"Clareza antes de cobrança.\"\n\nQUADRO 3 - caixa de perguntas: \"Qual conversa difícil você está adiando? Responda aqui. Eu mostro como conduzir, sem citar nomes.\"\n\nQUADRO 4 - teste rápido (quiz): \"O feedback correto começa por...\" Fato / Opinião.\n\nQUADRO 5 - convite: \"Se esse conteúdo ajuda você, siga o perfil e compartilhe este story com um líder.\"",
     "textoNaArte": "QUAL É O SEU MAIOR DESAFIO COMO LÍDER HOJE?",
     "legenda": "Sequência de stories com enquete e caixa de perguntas. As respostas viram os próximos conteúdos."
   },
@@ -200,5 +200,39 @@
     "textoNaArte": "RESUMO DA SEMANA",
     "legenda": "Sequência de stories do dia. As respostas viram os próximos conteúdos.",
     "campanha": "Liderança com método"
+  },
+  {
+    "tipo": "post",
+    "titulo": "Card: o exemplo do líder é a regra mais seguida",
+    "campanha": "Liderança com método",
+    "objetivo": "Salvamentos e compartilhamentos com uma frase de autoridade.",
+    "sugestaoDeDia": "segunda, 12h",
+    "agendadoPara": "2026-10-19 12:00",
+    "textoNaArte": "O EXEMPLO DO LÍDER É A REGRA QUE A EQUIPE MAIS SEGUE.",
+    "legenda": "A equipe ouve o que você diz. Mas copia o que você faz.\n\nO horário que você cumpre, o combinado que você honra e a conversa que você não evita viram a regra de verdade, escrita ou não.\n\nAntes de cobrar um comportamento, confira se ele aparece em você.\n\nSalve este post e envie para um líder que lidera pelo exemplo. Qual hábito seu a equipe mais copia?",
+    "hashtags": [
+      "lideranca",
+      "exemplo",
+      "gestaodeequipes",
+      "vendas",
+      "performance"
+    ]
+  },
+  {
+    "tipo": "post",
+    "titulo": "Card: constância ganha de intensidade",
+    "campanha": "Liderança com método",
+    "objetivo": "Compartilhamentos com uma ideia simples sobre rotina.",
+    "sugestaoDeDia": "sexta, 12h",
+    "agendadoPara": "2026-10-23 12:00",
+    "textoNaArte": "CONSTÂNCIA GANHA DE INTENSIDADE. TODO DIA.",
+    "legenda": "Um dia de esforço máximo impressiona. Cem dias de rotina bem feita transformam.\n\nEquipe boa não é a que faz um sprint heroico uma vez por mês. É a que repete o básico com disciplina, todos os dias.\n\nEscolha uma prática pequena para sustentar nesta semana e comece hoje.\n\nSalve para lembrar na segunda-feira e comente qual será a sua prática.",
+    "hashtags": [
+      "lideranca",
+      "constancia",
+      "gestaodeequipes",
+      "vendas",
+      "rotina"
+    ]
   }
 ]
