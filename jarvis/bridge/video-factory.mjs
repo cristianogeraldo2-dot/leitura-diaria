@@ -100,7 +100,7 @@ export async function validarVideo(arquivo) {
  * cenas: [{ texto, duracao?, imagem?, cor? }]  ·  cta?: texto final  ·  trilha?: arquivo de áudio local
  * Imagens/trilha só são lidas de dentro de knowledge/instagram/entrada (ou de uma pasta passada em baseMidia).
  */
-export async function produzirVideo({ titulo, campanha = 'geral', cenas, cta, capaTexto, trilha, base = VIDEOS_DIR, baseMidia = join(IG_DIR, 'entrada'), data = new Date() }) {
+export async function produzirVideo({ titulo, campanha = 'geral', cenas, cta, capaTexto, trilha = 'ambiente', base = VIDEOS_DIR, baseMidia = join(IG_DIR, 'entrada'), data = new Date() }) {
   const ff = await detectarFfmpeg()
   if (!ff.ok) return { ok: false, motivo: 'FFmpeg não encontrado.', ...ff }
   const fonte = acharFonte()
@@ -150,7 +150,14 @@ export async function produzirVideo({ titulo, campanha = 'geral', cenas, cta, ca
     writeFileSync(join(wd, 'lista.txt'), clipes.map((c) => `file '${c}'`).join('\n'))
     const mp4 = join(pasta, `${nome}.mp4`)
     await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', 'lista.txt', '-c', 'copy', '-movflags', '+faststart', 'final.mp4'], { cwd: wd })
-    if (trilha) {
+    if (trilha === 'ambiente') {
+      // Trilha sintetizada na hora (acorde suave + pulso leve): sem direito autoral. Troque por uma música em alta no app, se quiser.
+      const dur = (t + 0.5).toFixed(2)
+      const expr = "0.07*sin(2*PI*220*t)+0.06*sin(2*PI*261.63*t)+0.05*sin(2*PI*329.63*t)+0.30*sin(2*PI*55*t)*exp(-9*mod(t,0.5))"
+      await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `aevalsrc='${expr}':s=44100:d=${dur}`, '-af', `lowpass=f=1800,afade=t=in:st=0:d=1.5,afade=t=out:st=${Math.max(0, t - 1.5).toFixed(2)}:d=1.5`, '-c:a', 'aac', 'trilha.m4a'], { cwd: wd })
+      await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', 'final.mp4', '-i', 'trilha.m4a', '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-shortest', '-movflags', '+faststart', 'comtrilha.mp4'], { cwd: wd })
+      copyFileSync(join(wd, 'comtrilha.mp4'), mp4)
+    } else if (trilha && trilha !== 'nenhuma') {
       await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', 'final.mp4', '-stream_loop', '-1', '-i', seguro(trilha), '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-shortest', '-movflags', '+faststart', 'comtrilha.mp4'], { cwd: wd })
       copyFileSync(join(wd, 'comtrilha.mp4'), mp4)
     } else copyFileSync(join(wd, 'final.mp4'), mp4)
@@ -214,7 +221,7 @@ export function videoTools(store = createStore()) {
     tool('video_produzir', 'VIDEO_FACTORY: monta um MP4 vertical 9:16 (H.264/AAC) com cenas de texto na tela, CTA final, capa PNG e legendas SRT, salvos em knowledge/instagram/videos/AAAA-MM-DD/campanha. Só LOCAL: não publica nada. Cada cena: { texto curto, duracao em s (1,5–12), imagem opcional (arquivo em knowledge/instagram/entrada) }. Só diga que o vídeo foi gerado se o retorno trouxer existe=true e ok=true; relate os problemas da validação. Use texto autoral e sem dados internos da empresa, clientes ou funcionários.', {
       titulo: z.string().min(2).max(120), campanha: z.string().max(60).optional(), capaTexto: z.string().max(80).optional(), cta: z.string().max(80).optional(),
       cenas: z.array(z.object({ texto: z.string().min(1).max(160), duracao: z.number().min(1.5).max(12).optional(), imagem: z.string().max(200).optional(), tamanho: z.number().min(40).max(200).optional().describe('tamanho da letra; use 130-180 para palavra gigante'), corTexto: z.string().max(7).optional().describe('cor hex do texto, ex. F5A623') })).min(1).max(20),
-      trilha: z.string().max(200).optional().describe('arquivo de áudio em knowledge/instagram/entrada (opcional)'),
+      trilha: z.string().max(200).optional().describe("padrão 'ambiente' (trilha sintetizada, sem direito autoral); 'nenhuma' para silêncio; ou um arquivo de áudio em knowledge/instagram/entrada"),
       rascunhoId: z.string().optional().describe('se informado, vincula o arquivo ao rascunho'),
     }, async ({ rascunhoId, ...p }) => {
       const r = await produzirVideo(p)
