@@ -173,6 +173,41 @@ export async function produzirVideo({ titulo, campanha = 'geral', cenas, cta, ca
   } finally { rmSync(wd, { recursive: true, force: true }) }
 }
 
+/**
+ * Artes estáticas 4:5 (1080x1350, PNG) para posts e carrosséis: um PNG por slide, texto grande sobre cor.
+ * slides: [{ texto, tamanho?, corTexto?, rodape? }]. Só local; devolve só o que existe em disco.
+ */
+export async function produzirImagens({ titulo, campanha = 'geral', slides, base = VIDEOS_DIR, data = new Date(), rodape = '@cristianogeraldo.ofc' }) {
+  const ff = await detectarFfmpeg()
+  if (!ff.ok) return { ok: false, motivo: 'FFmpeg não encontrado.', ...ff }
+  const fonte = acharFonte()
+  if (!fonte) return { ok: false, motivo: 'Nenhuma fonte encontrada. Defina JARVIS_FONT com o caminho de um .ttf.' }
+  if (!slides?.length || slides.length > 10) return { ok: false, motivo: 'Use de 1 a 10 slides.' }
+  const pasta = join(base, data.toISOString().slice(0, 10), slug(campanha), `${slug(titulo)}-${Math.random().toString(36).slice(2, 6)}`)
+  mkdirSync(pasta, { recursive: true })
+  const wd = mkdtempSync(join(tmpdir(), 'jarvis-img-'))
+  const cores = ['0x0b1f2a', '0x14213d', '0x102a43', '0x1b263b']
+  const arquivos = []
+  try {
+    for (let i = 0; i < slides.length; i++) {
+      const s = slides[i]
+      const tam = Math.min(200, Math.max(40, Number(s.tamanho) || 72))
+      const cor = /^#?[0-9a-f]{6}$/i.test(s.corTexto ?? '') ? `0x${String(s.corTexto).replace('#', '')}` : 'white'
+      const texto = filtroTexto(quebrar(s.texto, Math.max(6, Math.floor(1500 / tam))), fonte, wd, { nome: `i${i}_`, tam, cor, y0: 0.45 })
+      writeFileSync(join(wd, `r${i}.txt`), s.rodape ?? rodape, 'utf8')
+      const marca = `drawtext=fontfile='${esc(fonte)}':textfile='r${i}.txt':fontsize=34:fontcolor=white@0.55:x=(w-text_w)/2:y=h-110`
+      const saida = join(pasta, `${String(i + 1).padStart(2, '0')}.png`)
+      await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `color=c=${cores[i % cores.length]}:s=${W}x1350`, '-vf', `${texto},${marca}`, '-frames:v', '1', 'img.png'], { cwd: wd })
+      copyFileSync(join(wd, 'img.png'), saida)
+      arquivos.push(saida)
+    }
+    log('video', `imagens ${slug(titulo)} ${arquivos.length}`)
+    return { ok: arquivos.every((a) => existsSync(a)), pasta, arquivos, publicado: false }
+  } catch (e) {
+    return { ok: false, motivo: String(e.message ?? e).slice(0, 400) }
+  } finally { rmSync(wd, { recursive: true, force: true }) }
+}
+
 export function videoTools(store = createStore()) {
   return [
     tool('video_ffmpeg', 'Verifica (só leitura) se o FFmpeg e a fonte de texto existem neste computador, para a VIDEO_FACTORY. Não instala nada.', {}, async () => text({ ffmpeg: await detectarFfmpeg(), fonte: acharFonte() ? 'ok' : 'não encontrada' })),
@@ -189,6 +224,10 @@ export function videoTools(store = createStore()) {
       }
       return text(r)
     }),
+    tool('imagem_produzir', 'Gera artes estáticas 4:5 (PNG 1080x1350) para post ou carrossel: um PNG por slide com texto grande e o @ no rodapé, em knowledge/instagram/videos/AAAA-MM-DD/campanha. Só LOCAL: não publica nada. Só diga que gerou se o retorno trouxer ok=true.', {
+      titulo: z.string().min(2).max(120), campanha: z.string().max(60).optional(),
+      slides: z.array(z.object({ texto: z.string().min(1).max(220), tamanho: z.number().min(40).max(200).optional(), corTexto: z.string().max(7).optional() })).min(1).max(10),
+    }, async (p) => text(await produzirImagens(p))),
     tool('video_validar', 'Valida um MP4 local para Reels (9:16, H.264, áudio, 3–90 s). Só leitura; o arquivo precisa estar em knowledge/instagram.', { arquivo: z.string().max(300) }, async ({ arquivo }) => {
       const alvo = resolve(isAbsolute(arquivo) ? arquivo : join(IG_DIR, arquivo))
       const rel = relative(IG_DIR, alvo)
