@@ -49,6 +49,21 @@
   .del { background:transparent; border:none; color:#d4786a; font-size:20px; cursor:pointer; width:44px; height:44px; flex-shrink:0; }
   .vazio { color:#c9bfa8; font-size:13px; padding:10px 2px; }
   #formAdd { display:none; }
+  .seq { text-align:center; }
+  .seq .num { font-size:34px; font-weight:800; color:#e8c96a; line-height:1; }
+  .seq .sub { font-size:12px; color:#c9bfa8; margin-top:4px; }
+  .pontos { display:flex; justify-content:center; gap:5px; margin-top:10px; flex-wrap:wrap; }
+  .pontos i { width:14px; height:14px; border-radius:50%; background:#3a3832; display:block; }
+  .pontos i.ok { background:#5a7d4f; } .pontos i.meio { background:#8a7a3c; } .pontos i.hoje { outline:2px solid #e8c96a; }
+  .guia .txt { font-size:14px; line-height:1.5; margin-top:8px; }
+  .guia h3 { font-size:11px; letter-spacing:2px; color:#c9bfa8; margin:12px 0 4px; font-weight:600; }
+  .guia ul { padding-left:18px; font-size:13px; line-height:1.5; }
+  .guia .sug { border:1px solid #4a463d; border-radius:10px; padding:10px; margin-top:8px; font-size:13px; line-height:1.45; }
+  .guia .sug .botoes { margin-top:8px; }
+  .guia .perg { color:#e8c96a; font-weight:600; font-size:14px; margin-top:6px; }
+  .guia .aviso { font-size:11px; color:#c9bfa8; margin-top:8px; line-height:1.4; }
+  .guia input { background:#1f1e1b; border:1px solid #4a463d; border-radius:6px; color:#f7f4ef; font-size:14px; padding:8px; width:100%; margin-top:6px; }
+
   .anel { text-align:center; padding:10px; }
   .anel svg { width:100%; max-width:260px; height:auto; }
   .anel .legenda { font-size:11px; color:#c9bfa8; margin-top:4px; }
@@ -72,6 +87,27 @@
   <div class="card anel">
     <svg id="anel" viewBox="0 0 200 200" role="img" aria-label="Anel do dia"></svg>
     <div class="legenda"><span style="color:#5a7d4f">⬤</span> feito &nbsp; <span style="color:#e8c96a">⬤</span> agora/próximo &nbsp; <span style="color:#6a665b">⬤</span> pendente</div>
+  </div>
+
+  <div class="card seq">
+    <div class="rotulo">SEQUÊNCIA</div>
+    <div class="num" id="seqNum">0</div>
+    <div class="sub" id="seqSub"></div>
+    <div class="pontos" id="seqPontos" aria-hidden="true"></div>
+  </div>
+
+  <div class="card guia">
+    <div class="rotulo"><span>GUIA IA</span><span id="guiaData"></span></div>
+    <div id="guiaCorpo"><div class="txt">Peça uma leitura dos seus últimos dias: padrões, o que ajustar e uma pergunta para você não viver no automático.</div></div>
+    <div class="botoes">
+      <button class="acao" id="btnGuia">✨ Pedir meu guia</button>
+      <button class="sec" id="btnChave">🔑 Chave</button>
+    </div>
+    <div id="guiaChave" style="display:none">
+      <input id="chaveIA" type="password" placeholder="Chave da API da Anthropic (sk-ant-...)" autocomplete="off" aria-label="Chave da API">
+      <div class="botoes"><button class="acao" id="btnChaveSalva">Salvar chave</button><button class="sec" id="btnChaveRemove">Remover</button></div>
+      <div class="aviso">A chave fica só neste aparelho e é enviada apenas à Anthropic. Quem tiver acesso ao seu navegador poderia vê-la, então use uma chave só para isto, com limite de gasto baixo. Ao pedir o guia, o resumo dos seus últimos 14 dias (inclusive o exame da noite) é enviado à Anthropic.</div>
+    </div>
   </div>
 
   <div class="card">
@@ -238,7 +274,8 @@ function dataLocal(d){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 function novoId(){ return "b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
-function salva(){ gravar("gd_tarefas_v1", tarefas); gravar("gd_feitos_"+chave, feitos); }
+function salva(){ gravar("gd_tarefas_v1", tarefas); gravar("gd_feitos_"+chave, feitos);
+  gravar("gd_resumo_"+chave, {f:tarefas.filter(t=>feitos[t.id]).length, t:tarefas.length}); }
 
 function carregaDia(){
   const hoje = new Date();
@@ -319,6 +356,7 @@ function render(){
   const done = tarefas.filter(t=>feitos[t.id]).length;
   $("progresso").textContent = (total ? Math.round(done/total*100) : 0)+"% feito";
   renderAnel(prox);
+  if (typeof renderSequencia==="function") renderSequencia();
 }
 
 // ---------- anel do dia ----------
@@ -413,6 +451,141 @@ $("planoSel").onchange = e => { plano.plano = e.target.value; salvaPlano(); rend
 $("btnLido").onclick = marcaLido;
 $("btnPlanoZera").onclick = () => { if(!confirm("Reiniciar o plano “"+PLANOS[plano.plano].nome+"” do início?")) return;
   plano.prog[plano.plano]=0; delete plano.feitoEm[plano.plano]; salvaPlano(); renderPlano(); };
+
+// ---------- sequência de dias ----------
+const META_DIA = 0.7; // dia "cumprido" = 70% dos blocos feitos
+function addDias(d, n){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()+n); }
+function pctDia(dataStr){
+  const r = lerJSON("gd_resumo_"+dataStr, null);
+  if (r && r.t) return r.f / r.t;
+  const f = lerJSON("gd_feitos_"+dataStr, null);
+  if (!f || !tarefas.length) return null;
+  return Object.keys(f).filter(k=>f[k]).length / tarefas.length;
+}
+function sequencias(){
+  const hoje = new Date();
+  const datas = [];
+  try {
+    for (let i=0;i<localStorage.length;i++){
+      const m = localStorage.key(i).match(/^gd_(?:feitos|resumo)_(\d{4}-\d{2}-\d{2})$/);
+      if (m) datas.push(m[1]);
+    }
+  } catch(e){}
+  const ok = new Set([...new Set(datas)].filter(d=>(pctDia(d)||0) >= META_DIA));
+  // sequência atual: hoje conta se já cumprido; senão, parte de ontem
+  let d = ok.has(chave) ? hoje : addDias(hoje,-1), atual = 0;
+  while (ok.has(dataLocal(d))) { atual++; d = addDias(d,-1); }
+  // melhor sequência
+  const ord = [...ok].sort(); let melhor = 0, run = 0, ant = null;
+  ord.forEach(x=>{
+    const [y,m,dd] = x.split("-").map(Number);
+    const esperado = ant ? dataLocal(addDias(ant,1)) : null;
+    run = (esperado===x) ? run+1 : 1; melhor = Math.max(melhor, run); ant = new Date(y,m-1,dd);
+  });
+  return {atual, melhor, hojeOk: ok.has(chave)};
+}
+function renderSequencia(){
+  const s = sequencias();
+  $("seqNum").textContent = s.atual+(s.atual===1?" dia":" dias");
+  const faltam = Math.ceil(META_DIA*tarefas.length) - tarefas.filter(t=>feitos[t.id]).length;
+  $("seqSub").textContent = (s.hojeOk ? "Hoje está cumprido. " : "Cumpra "+Math.round(META_DIA*100)+"% dos blocos hoje"+(faltam>0?" (faltam "+faltam+") ":" ")+"para manter. ")+"Melhor: "+s.melhor+".";
+  const box = $("seqPontos"); box.replaceChildren();
+  for (let i=13;i>=0;i--){
+    const d = addDias(new Date(),-i), p = pctDia(dataLocal(d));
+    box.appendChild(el("i",{class:(p>=META_DIA?"ok":p>0?"meio":"")+(i===0?" hoje":""), title:dataLocal(d)}));
+  }
+}
+
+// ---------- guia IA ----------
+const MODELO_IA = "claude-sonnet-5-5";
+function lerChave(){ try { return localStorage.getItem("gd_ia_key")||""; } catch(e){ return ""; } }
+function resumoParaIA(){
+  const dias = [];
+  for (let i=13;i>=0;i--){
+    const ds = dataLocal(addDias(new Date(),-i));
+    const f = lerJSON("gd_feitos_"+ds, null), ex = lerJSON("gd_exame_"+ds, {});
+    if (!f && !(ex.e1||ex.e2||ex.e3)) continue;
+    const cl = t => String(t||"").slice(0,300);
+    dias.push({data:ds, feitos:tarefas.filter(t=>f&&f[t.id]).map(t=>t.hora+" "+t.titulo),
+      nao_feitos:tarefas.filter(t=>!(f&&f[t.id])).map(t=>t.hora+" "+t.titulo),
+      exame:{deus_agindo:cl(ex.e1), fiz_bem:cl(ex.e2), ajustar:cl(ex.e3)}});
+  }
+  const g = lerJSON("gd_guia_v1", {historico:[]});
+  const pl = PLANOS[plano.plano];
+  return {hoje:chave, hora_agora:new Date().toTimeString().slice(0,5), cronograma:tarefas.map(t=>({hora:t.hora,titulo:t.titulo,dur:t.dur,intencao:t.intencao})),
+    sequencia:sequencias(), plano_biblia:{plano:pl.nome, capitulos_lidos:plano.prog[plano.plano]||0, total:pl.caps},
+    ultimos_dias:dias, memoria_do_guia:(g.historico||[]).slice(-6)};
+}
+const SISTEMA_IA = `Você é o Guia do Meu Dia: um mentor prático, direto e caloroso, de visão cristã, que ajuda o usuário a viver com propósito e não no automático.
+Receba o JSON com o cronograma, a sequência de dias, os últimos dias (feitos/não feitos e o exame da noite) e a memória de conselhos anteriores (o que ele aplicou ou dispensou).
+Aprenda com a memória: não repita o que ele dispensou; aprofunde o que funcionou. Use só o que está nos dados; se faltar informação, diga e peça o registro.
+Responda SOMENTE com JSON válido, sem texto fora dele, neste formato:
+{"leitura":"2-3 frases honestas sobre como estão os dias dele","padroes":["até 3 padrões observados nos dados"],"sugestoes":[{"texto":"ação concreta e pequena","bloco":{"hora":"HH:MM","titulo":"...","dur":"30 min","intencao":"..."}}],"pergunta":"uma pergunta de reflexão profunda e específica ao caso dele"}
+"bloco" é opcional (use só quando a sugestão for um novo bloco no cronograma). No máximo 3 sugestões. Português do Brasil, sem floreio.`;
+
+async function chamaIA(){
+  const chaveIA = lerChave();
+  if (!chaveIA) throw new Error("Cadastre sua chave em “🔑 Chave”.");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":chaveIA,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:MODELO_IA, max_tokens:1500, system:SISTEMA_IA, messages:[{role:"user",content:JSON.stringify(resumoParaIA())}]})
+  });
+  if (!r.ok){ const e = await r.json().catch(()=>({})); throw new Error((e.error&&e.error.message)||("Erro "+r.status)); }
+  const j = await r.json();
+  const txt = (j.content||[]).map(c=>c.text||"").join("");
+  const ini = txt.indexOf("{"), fim = txt.lastIndexOf("}");
+  if (ini<0) throw new Error("Resposta inesperada do guia.");
+  return JSON.parse(txt.slice(ini, fim+1));
+}
+function registraMemoria(resp, extra){
+  const g = lerJSON("gd_guia_v1", {historico:[]});
+  g.historico = g.historico||[];
+  let h = g.historico.find(x=>x.data===chave);
+  if (!h){ h = {data:chave, leitura:String(resp.leitura||"").slice(0,300), aplicadas:[], dispensadas:[]}; g.historico.push(h); }
+  if (extra && extra.aplicada) h.aplicadas.push(extra.aplicada.slice(0,120));
+  if (extra && extra.dispensada) h.dispensadas.push(extra.dispensada.slice(0,120));
+  g.historico = g.historico.slice(-10); g.ultima = {data:chave, resp};
+  gravar("gd_guia_v1", g);
+}
+function lista(titulo, itens){
+  if (!itens || !itens.length) return null;
+  const ul = el("ul"); itens.forEach(i=>ul.appendChild(el("li",{text:String(i)})));
+  return el("div",{}, el("h3",{text:titulo}), ul);
+}
+function renderGuia(resp){
+  const box = $("guiaCorpo"); box.replaceChildren();
+  $("guiaData").textContent = resp && resp._data ? resp._data : "";
+  if (!resp){ box.appendChild(el("div",{class:"txt",text:"Peça uma leitura dos seus últimos dias: padrões, o que ajustar e uma pergunta para você não viver no automático."})); return; }
+  box.appendChild(el("div",{class:"txt",text:String(resp.leitura||"")}));
+  const p = lista("PADRÕES", (resp.padroes||[]).slice(0,3)); if (p) box.appendChild(p);
+  if ((resp.sugestoes||[]).length) box.appendChild(el("h3",{text:"SUGESTÕES"}));
+  (resp.sugestoes||[]).slice(0,3).forEach(sg=>{
+    const card = el("div",{class:"sug"}, el("div",{text:String(sg.texto||"")}));
+    const b = sg.bloco, valido = b && /^([01]\d|2[0-3]):[0-5]\d$/.test(String(b.hora||"")) && b.titulo;
+    const bt = el("div",{class:"botoes"});
+    if (valido) bt.appendChild(el("button",{class:"acao",type:"button",text:"+ Adicionar "+b.hora+" "+String(b.titulo).slice(0,30),onclick:()=>{
+      tarefas.push({id:novoId(),hora:b.hora,titulo:String(b.titulo).slice(0,80),dur:String(b.dur||"").slice(0,20),intencao:String(b.intencao||"").slice(0,120)});
+      salva(); render(); registraMemoria(resp,{aplicada:String(sg.texto||b.titulo)}); card.remove(); mostra("Bloco adicionado ao cronograma.");}}));
+    bt.appendChild(el("button",{class:"sec",type:"button",text:"Dispensar",onclick:()=>{ registraMemoria(resp,{dispensada:String(sg.texto||"")}); card.remove(); }}));
+    card.appendChild(bt); box.appendChild(card);
+  });
+  if (resp.pergunta){ box.appendChild(el("h3",{text:"PARA REFLETIR HOJE"})); box.appendChild(el("div",{class:"perg",text:String(resp.pergunta)})); }
+}
+async function pedirGuia(){
+  const b = $("btnGuia"); b.disabled = true; b.textContent = "Pensando…";
+  try {
+    const resp = await chamaIA(); resp._data = chave;
+    registraMemoria(resp); renderGuia(resp);
+  } catch(e){
+    $("guiaCorpo").replaceChildren(el("div",{class:"txt",text:"Não consegui falar com o guia: "+(e.message||e)}));
+  } finally { b.disabled = false; b.textContent = "✨ Pedir meu guia"; }
+}
+$("btnGuia").onclick = pedirGuia;
+$("btnChave").onclick = () => { const c=$("guiaChave"); c.style.display = c.style.display==="block"?"none":"block"; };
+$("btnChaveSalva").onclick = () => { const v=$("chaveIA").value.trim(); if(!v) return;
+  try { localStorage.setItem("gd_ia_key", v); } catch(e){} $("chaveIA").value=""; $("guiaChave").style.display="none"; mostra("Chave salva neste aparelho."); };
+$("btnChaveRemove").onclick = () => { try { localStorage.removeItem("gd_ia_key"); } catch(e){} mostra("Chave removida."); };
 
 // ---------- avisos ----------
 let tBanner;
@@ -519,6 +692,8 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) veri
 carregaDia();
 render();
 renderPlano();
+renderSequencia();
+renderGuia((lerJSON("gd_guia_v1",{}).ultima||{}).resp ? Object.assign({_data:lerJSON("gd_guia_v1",{}).ultima.data}, lerJSON("gd_guia_v1",{}).ultima.resp) : null);
 atualizaStatusNotif();
 setInterval(verificaAlertas, 15000);
 
