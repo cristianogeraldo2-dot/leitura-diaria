@@ -9,6 +9,13 @@ export default defineConfig({
     // only accepts sockets from localhost:5173-5199, so stay inside that range
     // or set JARVIS_ALLOWED_ORIGINS to match.
     port: Number(process.env.PORT) || 5173,
+    // O Vite só precisa vigiar o código da interface. Pastas de dados do JARVIS
+    // (backups, knowledge, logs, memory, config) mudam em segredo e, no Windows,
+    // antivírus/OneDrive podem travar esses arquivos (EBUSY) — e um erro do
+    // watcher derrubava a interface e, por tabela, a bridge inteira.
+    watch: {
+      ignored: ['**/backups/**', '**/knowledge/**', '**/logs/**', '**/memory/**', '**/config/**', '**/dist/**'],
+    },
   },
   optimizeDeps: {
     // kokoro-js pulls in `phonemizer`, which carries espeak-ng as inline WASM.

@@ -9,6 +9,10 @@ import { execFile } from 'node:child_process'
 import { DIRS, ROOT, log, readJson, redact } from './home.mjs'
 import { analyze } from './analytics.mjs'
 import { MODES, getMode, setMode } from './persona.mjs'
+import { instagramTools } from './instagram.mjs'
+import { marketingTools } from './marketing.mjs'
+import { videoTools } from './video-factory.mjs'
+import { verificarConexao } from './instagram-publish.mjs'
 
 const text = (t) => ({ content: [{ type: 'text', text: typeof t === 'string' ? t : JSON.stringify(t, null, 2) }] })
 export const NO_DATA = 'Não tenho esse dado disponível.'
@@ -59,8 +63,9 @@ export function backupDashboard(file) {
 export function inspectDashboard(file) {
   const html = readFileSync(file, 'utf8')
   const uniq = (a) => [...new Set(a)]
-  const scriptSrc = uniq([...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]))
-  const linkHref = uniq([...html.matchAll(/<link[^>]+href=["']([^"']+)["']/gi)].map((m) => m[1]))
+  const short = (u) => (u.length > 160 ? `${u.slice(0, 40)}… (${u.length} caracteres)` : u)
+  const scriptSrc = uniq([...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => short(m[1])))
+  const linkHref = uniq([...html.matchAll(/<link[^>]+href=["']([^"']+)["']/gi)].map((m) => short(m[1])))
   const inline = [...html.matchAll(/<script(?![^>]+src)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1])
   const js = inline.join('\n')
   const libs = [['Chart.js', /chart(\.umd)?(\.min)?\.js|new Chart\(/i], ['Plotly', /plotly/i], ['ApexCharts', /apexcharts/i], ['ECharts', /echarts/i], ['D3', /d3(\.min)?\.js|d3\./i], ['Google Charts', /gstatic\.com\/charts/i], ['Supabase', /supabase/i], ['Firebase', /firebase/i]]
@@ -77,7 +82,7 @@ export function inspectDashboard(file) {
   }
 }
 
-function probePort(port, host = '127.0.0.1', ms = 800) {
+function probeOne(port, host, ms) {
   return new Promise((res) => {
     const s = createConnection({ port, host })
     const done = (v) => { s.destroy(); res(v) }
@@ -85,6 +90,11 @@ function probePort(port, host = '127.0.0.1', ms = 800) {
     s.on('connect', () => done(true))
     s.on('error', () => done(false))
   })
+}
+// Vite no Windows costuma escutar só em [::1]; testa IPv4 e IPv6.
+async function probePort(port, ms = 1500) {
+  for (const host of ['127.0.0.1', '::1']) if (await probeOne(port, host, ms)) return true
+  return false
 }
 
 function mcpFromClaudeConfig() {
@@ -94,23 +104,36 @@ function mcpFromClaudeConfig() {
   } catch { return [] }
 }
 
-let claudeCache = { at: 0, v: null }
-/** Real check: is the CLI installed and logged in? Cached for a minute. */
+let claudeCache = { at: 0, v: null, bomEm: 0, bom: null }
+let claudeEmVoo = null
+/**
+ * Verifica o Claude Code (instalado e logado) com `claude auth status`.
+ * No Windows o comando pode levar mais de 8s, então o limite é maior e uma falha por TEMPO ESGOTADO
+ * não derruba o painel se houve resposta boa há menos de 30 min. Uma checagem por vez.
+ */
 export function claudeStatus() {
   if (Date.now() - claudeCache.at < 60_000 && claudeCache.v) return Promise.resolve(claudeCache.v)
-  return new Promise((res) => {
-    execFile('claude', ['auth', 'status'], { timeout: 8000, shell: process.platform === 'win32' }, (err, out) => {
+  if (claudeEmVoo) return claudeEmVoo
+  claudeEmVoo = new Promise((res) => {
+    execFile('claude', ['auth', 'status'], { timeout: 25_000, shell: process.platform === 'win32', windowsHide: true }, (err, out) => {
       let v
-      if (err && !out) v = { ok: false, installed: err.code !== 'ENOENT', loggedIn: false, note: err.code === 'ENOENT' ? 'CLI do Claude Code não encontrada no PATH' : 'falha ao consultar autenticação' }
-      else {
+      const tempoEsgotado = Boolean(err && (err.killed || err.signal === 'SIGTERM'))
+      if (err && !out) {
+        v = { ok: false, installed: err.code !== 'ENOENT', loggedIn: false, tempoEsgotado, note: err.code === 'ENOENT' ? 'CLI do Claude Code não encontrada no PATH do processo da bridge' : tempoEsgotado ? 'a verificação demorou mais de 25s' : `falha ao consultar (código ${err.code ?? '?'})` }
+      } else {
         let j = {}
         try { j = JSON.parse(out) } catch { /* texto livre */ }
-        v = { ok: j.loggedIn === true, installed: true, loggedIn: j.loggedIn === true, method: j.authMethod ?? null }
+        v = { ok: j.loggedIn === true, installed: true, loggedIn: j.loggedIn === true, method: j.authMethod ?? null, ...(j.loggedIn === true ? {} : { note: 'o Claude Code respondeu, mas não está logado — rode `claude` e faça login' }) }
       }
-      claudeCache = { at: Date.now(), v }
+      if (v.ok) { claudeCache.bom = v; claudeCache.bomEm = Date.now() }
+      // timeout sem resposta ruim confirmada: mantém o último estado bom recente
+      if (!v.ok && v.tempoEsgotado && claudeCache.bom && Date.now() - claudeCache.bomEm < 30 * 60_000) v = { ...claudeCache.bom, note: 'verificação lenta; usando o último resultado bom' }
+      claudeCache.at = Date.now(); claudeCache.v = v
+      claudeEmVoo = null
       res(v)
     })
   })
+  return claudeEmVoo
 }
 
 /** Compact status for the dashboard widget. Booleans only — no secrets, no data. */
@@ -127,11 +150,11 @@ export async function diagnostics(extra = {}) {
   const mcp = mcpFromClaudeConfig()
   const out = {
     bridge: { ok: true, port: bridgePort, pid: process.pid, uptimeSeg: Math.round(process.uptime()) },
-    frontend: { ok: await probePort(5173) || await probePort(4173), note: 'servidor Vite local em 5173 (ou preview 4173)' },
+    frontend: { ok: (await probePort(5173)) || (await probePort(4173)), note: 'servidor Vite local em 5173 (ou preview 4173)' },
     claudeCode: await claudeStatus(),
     voz: { note: 'Verificado no navegador: pressione D (painel) ou T (autoteste). O bridge não enxerga o microfone.', engine: extra.voice ?? 'navegador (speechSynthesis)' },
     mcp: { ok: mcp.length > 0, servidoresNoClaudeJson: mcp, chromeDevtools: mcp.includes('chrome-devtools') },
-    portas: { 8787: await probePort(bridgePort), 5173: await probePort(5173) },
+    portas: { 8787: await probePort(bridgePort), 5173: await probePort(5173), 4173: await probePort(4173) },
     dashboard: { ok: Boolean(dash), caminho: dash, backups: existsSync(DIRS.backups) ? readdirSync(DIRS.backups).filter((f) => f.endsWith('.bak')).length : 0 },
     dadosOperacao: { ok: Boolean(op), arquivo: 'knowledge/operacao.json' },
     memoria: { ok: Object.values(DIRS).every(existsSync), modo: getMode(), escritaLiberada: process.env.JARVIS_ALLOW_WRITES === '1', confirmacaoPorVoz: true },
@@ -147,6 +170,10 @@ export function opsServer() {
     instructions: 'Análise da operação Vila Dia, dashboard, modos, diagnóstico e memória local da Cris.',
     alwaysLoad: true,
     tools: [
+      ...instagramTools(),
+      ...marketingTools(),
+      ...videoTools(),
+      tool('instagram_conexao', 'Verifica (só leitura) se a conta do Instagram está conectada pela API oficial. Nunca mostra o token.', {}, async () => text(await verificarConexao())),
       tool('operacao_analise', 'Analisa a operação (meta, realizado, gap, casais, Q, NQ, vendas, conversão, VGV, ranking de captadores, gargalo e alertas) a partir de knowledge/operacao.json. Se devolver available=false, diga "Não tenho esse dado disponível." e peça o arquivo. Jamais invente números fora do retorno.', {}, async () => {
         log('tool', 'operacao_analise')
         return text(operationInsight())
@@ -158,7 +185,7 @@ export function opsServer() {
         log('dashboard', `inspect ${f}`)
         return text({ encontrado: true, backup, url: `http://localhost:${process.env.JARVIS_BRIDGE_PORT ?? 8787}/dashboard`, arquitetura: inspectDashboard(f) })
       }),
-      tool('jarvis_modo', 'Define o modo de operação: padrao, reuniao, lideranca ou analise. O modo vale até ser trocado.', { modo: z.enum(['padrao', 'reuniao', 'lideranca', 'analise']) }, async ({ modo }) => {
+      tool('jarvis_modo', 'Define o modo de operação: padrao, reuniao, lideranca ou analise. O modo vale até ser trocado.', { modo: z.enum(['padrao', 'reuniao', 'lideranca', 'analise', 'conteudo']) }, async ({ modo }) => {
         setMode(modo)
         return text(`${MODES[modo].ack} (modo=${modo})`)
       }),

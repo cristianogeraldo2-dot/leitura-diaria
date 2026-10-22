@@ -16,6 +16,7 @@ const sk = (name, why) => { skip++; console.log(`  ⏭  ${name} — ${why}`) }
 
 // ---- unidade: analytics -----------------------------------------------------
 const { analyze } = await import('../bridge/analytics.mjs')
+const P0 = await import('../bridge/persona.mjs')
 const ex = JSON.parse(readFileSync(join(ROOT, 'knowledge/operacao.exemplo.json'), 'utf8'))
 const a = analyze(ex)
 console.log('\n[analytics]')
@@ -30,6 +31,200 @@ const sem = analyze({ realizado: { casais: 5 }, meta: {} })
 t('campos ausentes viram null (nunca inventa)', sem.dados.conversao === null && sem.dados.gap.casais === null && sem.alertas.length === 0)
 const noPace = analyze({ meta: { casais: 40 }, realizado: { casais: 10 } })
 t('sem progressoDia não há alerta de ritmo', !noPace.alertas.some((x) => x.code.startsWith('META_')))
+
+// ---- unidade: importador do snapshot do dashboard (dados FICTÍCIOS, só em memória) ----
+const { snapshotToOperacao } = await import('../bridge/dashboard-data.mjs')
+const snapFx = { generatedAt: '2000-01-01T10:00:00Z', status: 'ok', buildStatus: 'built', queries: {
+  daily_metrics: { rows: [{ metric: 'abc', actual: 1, target: 2, attainment: 50, gap: 1, unit: 'un' }] },
+  casais_detail: { rows: [{ presencas: 20, qsRealizados: 8, nqsComPropostas: 2, nqsComVendas: 1, qMaisNqComProposta: 6, qMaisNqComVenda: 3, anoAnterior: 15, mesAnterior: 18 }] },
+  cotas_detail: { rows: [{ propostas: 5, compradoresPropostas: 4, cotasVendidas: 3, metaCotas: 6, anoAnterior: 2, mesAnterior: 4, superMeta: 8, megaMeta: 10, metaEsparta: 12 }] },
+  vgv_detail: { rows: [{ propostasVgv: 100, vendasVgv: 60, metaVgv: 120, eficienciaGeralPropostas: 1, eficienciaPropostas: 1, eficienciaMeta: 1, eficienciaAnoAnterior: 1, eficienciaMesAnterior: 1 }] } } }
+const opFx = snapshotToOperacao(snapFx)
+console.log('\n[dashboard → operacao.json]')
+t('mapeia casais/Q/vendas/cotas/VGV', opFx.realizado.casais === 20 && opFx.realizado.q === 8 && opFx.realizado.vendas === 3 && opFx.realizado.cotas === 3 && opFx.realizado.vgv === 60)
+t('derivados explícitos (NQ e Q com venda)', opFx.realizado.nq === 12 && opFx.realizado.qComVenda === 2 && opFx.derivados.length === 2)
+t('não inventa o que o dashboard não traz', opFx.captadores.length === 0 && opFx.meta.casais === null && opFx.progressoDia === null)
+const anFx = analyze(opFx)
+t('análise do snapshot: atingimento cotas/VGV e conversão Q', anFx.dados.atingimentoCotas === 50 && anFx.dados.atingimentoVgv === 50 && anFx.dados.conversao === 25)
+t('dados antigos geram aviso de defasagem', anFx.idadeDias > 1000 && /DEFASADOS/.test(anFx.avisos[0]))
+t('avisa que não há dados por captador e cita a data', anFx.avisos.some((x) => /captador/.test(x)) && anFx.avisos.some((x) => /2000-01-01/.test(x)))
+
+// ---- unidade: exportação do Radar (dados FICTÍCIOS, só em memória) ----
+const { radarToOperacao, validateRadar, parseRef } = await import('../bridge/radar-data.mjs')
+const radarFx = {
+  SNAP: { mes: 'Mês/2000', ano: 2000, mesIdx: 0, ref: '05/01/2000 · Sala', metaCotas: 100, metaVgv: 1000000, metaQs: 200, pesos: { util: 1, sex: 1.3, fds: 1.6 } },
+  REAL: { vgvVendido: 100000, cotasVendidas: 10, presencas: 50, qVenda: 20, nqVenda: 5, compradores: 8, cotasPropostas: 12, vgvPropostas: 150000, qnqProposta: 15 },
+  DIARIO: { '05/01': { casais: 10, vendas: 1, vgv: 10000, qs: 5, comp: 1 } },
+  PENETRACAO: {}, PLANO_FDS: [], LOCAIS: [['Ponto A', 3, 20, 7]], FONTES: [{ nome: 'Fonte pendente X', conf: 'pendente' }],
+  CAPTADORES: [
+    { nome: 'A', equipe: 'Alta', pres: 10, q: 6, nqv: 1, valid: 7, vendas: 2, valor: 50000 },
+    { nome: 'B', equipe: 'Média', pres: 2, q: 0, nqv: 0, valid: 0, vendas: 0, valor: 0 },
+    { nome: 'C', equipe: 'Base', pres: 0, q: null, nqv: null, valid: 0, vendas: 0, valor: 0 },
+  ],
+}
+console.log('\n[radar → operacao.json]')
+const opR = radarToOperacao(radarFx)
+t('valida e lê o carimbo (dd/mm → data)', validateRadar(radarFx) && opR.data === '2000-01-05' && parseRef('05/10/2026 23:02:09') === '2026-10-05')
+t('Total de Qs = Q + NQ c/ venda; NQ = presenças − Q', opR.realizado.totalQs === 25 && opR.realizado.nq === 30)
+t('eficiências nas definições da Cris', opR.eficiencias.aproveitamentoQs === 50 && opR.eficiencias.eficienciaQs === 40 && opR.eficiencias.comprador === 16 && opR.eficiencias.geral === 20)
+t('progresso do mês por peso de dia entre 0 e 1', opR.progressoMes > 0 && opR.progressoMes < 1)
+t('captador sem registro é marcado e não vira zero', opR.captadores[2].semRegistro === true && opR.captadores[2].casais === null)
+const anR = analyze(opR)
+t('análise: atingimento VGV/cotas/Qs e ritmo pelo mês', anR.dados.atingimentoVgv === 10 && anR.dados.atingimentoQs === 12.5 && anR.ritmo !== null)
+t('ranking ignora captador sem registro e cita fontes pendentes', anR.equipe.captadores === 2 && anR.equipe.semRegistro.includes('C') && anR.avisos.some((x) => /pendentes/.test(x)))
+
+// ---- unidade: leitor de planilhas (CSV/XLSX), dados FICTÍCIOS ----
+const { readTable, describeTable, toNumber } = await import('../bridge/tabular.mjs')
+console.log('\n[planilhas]')
+const csvT = readTable(join(ROOT, 'scripts/fixtures/ficticio.csv'))
+t('CSV com ; e Latin-1 e aspas', csvT.headers.join('|') === 'Captador|Vendas|Valor|Data' && csvT.rows.length === 2 && csvT.rows[0][0] === 'José "Zé" Silva')
+t('número no formato brasileiro', toNumber('1.234,56') === 1234.56 && toNumber('R$ 10.000.001') === 10000001 && toNumber('12,5%') === 12.5 && toNumber('abc') === null)
+const xlT = readTable(join(ROOT, 'scripts/fixtures/ficticio.xlsx'))
+t('XLSX sem dependências (strings compartilhadas, & e inline)', xlT.headers.join('|') === 'Captador|Vendas|Data' && xlT.rows[0][0] === 'Fulano & Cia' && xlT.rows[0][1] === '3' && xlT.rows[0][2] === '05/10/2000')
+const dsc = describeTable(csvT)
+t('descrição da estrutura não vaza valores', dsc.linhas === 2 && dsc.colunas[1].tipo === 'número' && dsc.colunas[3].tipo === 'data' && !JSON.stringify(dsc).includes('Silva'))
+
+// ---- unidade: leitura do HTML do Radar (FICTÍCIO) ----
+const { extractRadarFromHtml } = await import('../bridge/radar-data.mjs')
+const htmlFx = `<html><body><script>
+const SNAP = { mes: 'M', ano: 2000, mesIdx: 0, ref: '05/01/2000 · Sala', metaCotas: 10, metaVgv: 100, metaQs: 20, pesos: { util: 1, sex: 1.3, fds: 1.6 } };
+const REAL = { presencas: 4, qVenda: 2, nqVenda: 1, cotasVendidas: 1, vgvVendido: 50, compradores: 1 }; // comentário; com ponto e vírgula
+const PLANO_FDS = []; const PENETRACAO = {}; const DIARIO = { '05/01': { casais: 4, vendas: 1, vgv: 50, qs: 3, comp: 1 } };
+const CAPTADORES = [ ['Ana; Maria','Alta',2,1,0,1,0,0], ['Sem Registro','Base'] ].map(([nome,equipe,pres=0,q=null,nqv=null,valid=0,vendas=0,valor=0])=>({nome,equipe,pres,q,nqv,valid,vendas,valor}));
+const LOCAIS = [['P1',1,5,2]];
+const FONTES = [{ nome:'F', carimbo:'x', conf:'ok', txt:'texto longo' }];
+function util(){ return 1 }
+</script></body></html>`
+const exH = extractRadarFromHtml(htmlFx)
+console.log('\n[radar html]')
+t('lê os literais do HTML (incl. ; dentro de string e .map)', exH && exH.SNAP.metaCotas === 10 && exH.CAPTADORES.length === 2 && exH.CAPTADORES[0].nome === 'Ana; Maria' && exH.CAPTADORES[1].q === null)
+t('FONTES vêm sem o texto livre', exH.FONTES[0].txt === undefined && exH.FONTES[0].conf === 'ok')
+t('HTML com código perigoso é recusado', extractRadarFromHtml('<script>const SNAP={a:process.exit(1)};const REAL={};const CAPTADORES=[];const PLANO_FDS=[];const PENETRACAO={};const DIARIO={};const LOCAIS=[];</script>') === null)
+t('HTML que não é o Radar é recusado', extractRadarFromHtml('<html><body>oi</body></html>') === null)
+
+// ---- unidade: módulo Instagram (dados FICTÍCIOS, pasta temporária) ----
+const IG = await import('../bridge/instagram.mjs')
+console.log('\n[instagram]')
+const igTmp = mkdtempSync(join(tmpdir(), 'ig-'))
+const igSt = IG.createStore(igTmp)
+t('perfil vazio e atualização parcial preserva o resto', JSON.stringify(igSt.perfil()) === '{}' && igSt.perfil({ nicho: 'viagem' }).nicho === 'viagem' && igSt.perfil({ tom: 'leve' }).nicho === 'viagem')
+const r1 = igSt.salvar({ tipo: 'reel', titulo: 'Teste', legenda: 'x' })
+t('rascunho nasce como "rascunho" e não como publicado', r1.status === 'rascunho' && igSt.listar('rascunho').length === 1 && igSt.listar('aprovado').length === 0)
+t('aprovar muda o status e id inválido não quebra', igSt.aprovar(r1.id).status === 'aprovado' && igSt.aprovar('nao-existe') === null && igSt.aprovar('../../x') === null)
+const csvIg = 'Data;Tipo;Alcance;Curtidas;Comentários;Salvamentos;Compartilhamentos;Legenda\r\n01/01/2000;Reel;1000;50;5;10;10;A\r\n02/01/2000;Post;1000;10;0;0;0;B\r\n03/01/2000;Reel;500;40;10;20;5;C\r\n04/01/2000;Story;0;1;0;0;0;D\r\n'
+writeFileSync(join(igTmp, 'ficticio.csv'), csvIg)
+const rk = IG.rankPosts(readTable(join(igTmp, 'ficticio.csv')))
+t('ranking por engajamento ponderado (Reel C > Reel A > Post B)', rk.melhores[0].legenda === 'C' && rk.melhores[1].legenda === 'A' && rk.melhores[2].legenda === 'B')
+t('média por tipo e colunas reconhecidas', rk.mediaPorTipo.Reel.posts === 2 && rk.colunasReconhecidas.alcance === 'Alcance' && rk.colunasReconhecidas.salvamentos === 'Salvamentos')
+t('alcance zero não gera taxa inventada', !rk.melhores.some((x) => x.legenda === 'D'))
+let bloqueou = false; try { IG.importarMetricas('../../fora.csv', igSt, join(igTmp, 'entrada')) } catch { bloqueou = true }
+t('importação só lê dentro da pasta de entrada', bloqueou)
+rmSync(igTmp, { recursive: true, force: true })
+t('modo conteúdo é reconhecido por voz', P0.detectMode('Jarvis, modo conteúdo') === 'conteudo' && P0.detectMode('modo instagram') === 'conteudo')
+
+// ---- unidade: publicação no Instagram (API SIMULADA; nenhuma rede, credenciais falsas) ----
+const PUB = await import('../bridge/instagram-publish.mjs')
+console.log('\n[instagram publicar — simulado]')
+const rej = async (item) => { try { await PUB.publicarRascunho(item); return null } catch (e) { return String(e.message) } }
+const ok0 = { id: 'a', tipo: 'post', status: 'aprovado', legenda: 'Oi', hashtags: ['viagem'], midiaUrls: ['https://exemplo.com/a.jpg'] }
+t('recusa rascunho não aprovado', /APROVADOS/.test(await rej({ ...ok0, status: 'rascunho' })))
+t('recusa sem mídia e mídia não-https', /não tem mídia/.test(await rej({ ...ok0, midiaUrls: [] })) && /https/.test(await rej({ ...ok0, midiaUrls: ['http://x.com/a.jpg'] })))
+t('sem credenciais roda em SIMULAÇÃO e não chama a rede', (await PUB.publicarRascunho(ok0, { fetchFn: () => { throw new Error('rede!') } })).simulado === true)
+process.env.IG_ACCESS_TOKEN = 'TOKEN_FALSO_123456'; process.env.IG_USER_ID = '999'; process.env.IG_EXPECTED_USERNAME = '@Cris'
+const chamadas = []
+const fakeFetch = async (url, opt = {}) => {
+  const corpo = String(opt.body ?? '') + ' ' + url
+  chamadas.push({ url: String(url).replace(/^https:\/\/graph\.facebook\.com\/[^/]+/, ''), corpo })
+  const base = (j, status = 200) => ({ ok: status < 400, status, json: async () => j })
+  if (/status_code/.test(String(url))) return base({ status_code: 'FINISHED' })
+  if (/media_publish/.test(String(url))) return base({ id: 'PUB1' })
+  if (/\/999\/media$/.test(String(url))) return base({ id: 'C' + chamadas.length })
+  if (/\/999\?/.test(String(url))) return base({ username: 'cris', account_type: 'BUSINESS' })
+  return base({ error: { message: 'falhou com TOKEN_FALSO_123456' } }, 400)
+}
+const rPost = await PUB.publicarRascunho(ok0, { fetchFn: fakeFetch })
+t('post: cria contêiner e publica (2 chamadas) com legenda+hashtags', rPost.idMidia === 'PUB1' && chamadas.length === 3 && chamadas.some((c) => c.corpo.includes('caption=Oi') && c.corpo.includes('%23viagem')))
+chamadas.length = 0
+const rReel = await PUB.publicarRascunho({ ...ok0, tipo: 'reel', midiaUrls: ['https://exemplo.com/v.mp4'] }, { fetchFn: fakeFetch, dormir: async () => {} })
+t('reel: REELS + espera processar + publica', rReel.idMidia === 'PUB1' && chamadas.some((c) => c.corpo.includes('media_type=REELS')) && chamadas.some((c) => /status_code/.test(c.url)))
+chamadas.length = 0
+const rCar = await PUB.publicarRascunho({ ...ok0, tipo: 'carrossel', midiaUrls: ['https://e.com/1.jpg', 'https://e.com/2.jpg'] }, { fetchFn: fakeFetch })
+t('carrossel: filhos + contêiner CAROUSEL + publica', rCar.idMidia === 'PUB1' && chamadas.filter((c) => c.corpo.includes('is_carousel_item=true')).length === 2 && chamadas.some((c) => c.corpo.includes('media_type=CAROUSEL')))
+t('1 mídia só não vira carrossel', /pelo menos 2/.test(await rej({ ...ok0, tipo: 'carrossel' }) ?? ''))
+const badFetch = async () => ({ ok: false, status: 400, json: async () => ({ error: { message: 'erro com TOKEN_FALSO_123456' } }) })
+const msgErr = await (async () => { try { await PUB.publicarRascunho(ok0, { fetchFn: badFetch }) } catch (e) { return String(e.message) } })()
+t('erro da API nunca vaza o token', msgErr && !msgErr.includes('TOKEN_FALSO_123456'))
+const conn = await PUB.verificarConexao(fakeFetch)
+t('verificar conexão mostra usuário e não o token', conn.ok === true && conn.usuario === 'cris' && !JSON.stringify(conn).includes('TOKEN_FALSO'))
+const fakeContas = async () => ({ ok: true, status: 200, json: async () => ({ data: [{ name: 'Página X', instagram_business_account: { id: '123', username: 'cris' } }, { name: 'Sem IG' }] }) })
+const dc = await PUB.descobrirContas(fakeContas)
+t('descobrir contas lista Página, @ e ID, sem token', dc.length === 2 && dc[0].instagramUserId === '123' && dc[1].instagramUserId === null && !JSON.stringify(dc).includes('TOKEN_FALSO'))
+const apSt = IG.createStore(mkdtempSync(join(tmpdir(), 'ig-ap-')))
+const mk1 = (o) => apSt.salvar({ tipo: 'post', titulo: 'T', legenda: 'Oi', midiaUrls: ['https://e.com/a.jpg'], ...o })
+const aOk = mk1({ agendadoPara: '2026-10-16 12:00' }), aFut = mk1({ agendadoPara: '2026-10-16 20:00' }), aVelho = mk1({ agendadoPara: '2026-10-10 12:00' }), aNaoApr = mk1({ agendadoPara: '2026-10-16 11:00' }), aSemMidia = mk1({ agendadoPara: '2026-10-16 11:30', midiaUrls: [] })
+apSt.aprovarLote([aOk.id, aFut.id, aVelho.id, aSemMidia.id])
+const agora = new Date('2026-10-16T13:00:00-03:00')
+const dev = PUB.devidos(apSt, agora).map((x) => x.id)
+t('autopost: só aprovado, no horário, com mídia e dentro de 36 h', dev.length === 1 && dev[0] === aOk.id && !dev.includes(aNaoApr.id))
+t('autopost: interpreta horário sem fuso como Brasília', PUB.horario('2026-10-16 12:00') === Date.parse('2026-10-16T12:00:00-03:00'))
+process.env.IG_EXPECTED_USERNAME = 'cris'
+const rodou = await PUB.rodarAgendador(apSt, { agora, fetchFn: fakeFetch, parar: () => false })
+t('autopost publica o devido, marca como publicado e guarda o id', rodou.publicados.length === 1 && rodou.publicados[0].ok && apSt.obter(aOk.id).status === 'publicado' && apSt.obter(aOk.id).idMidia === 'PUB1')
+t('autopost não publica o mesmo duas vezes nem o que não é devido', (await PUB.rodarAgendador(apSt, { agora, fetchFn: fakeFetch, parar: () => false })).publicados.length === 0 && apSt.obter(aNaoApr.id).status === 'rascunho')
+const apSt2 = IG.createStore(mkdtempSync(join(tmpdir(), 'ig-ap2-')))
+const b1 = apSt2.salvar({ tipo: 'post', titulo: 'B', midiaUrls: ['https://e.com/b.jpg'], agendadoPara: '2026-10-16 09:00' }); apSt2.aprovarLote([b1.id])
+t('PARAR-INSTAGRAM interrompe o piloto automático', (await PUB.rodarAgendador(apSt2, { agora, fetchFn: fakeFetch, parar: () => true })).ativo === false && apSt2.obter(b1.id).status === 'aprovado')
+process.env.IG_EXPECTED_USERNAME = 'outra.conta'
+const rErro = await PUB.rodarAgendador(apSt2, { agora, fetchFn: fakeFetch, parar: () => false })
+t('autopost em conta errada não publica e conta a falha', rErro.publicados[0].ok === false && /Conta incorreta/.test(rErro.publicados[0].erro) && apSt2.obter(b1.id).falhas === 1)
+chamadas.length = 0
+const msgConta = await (async () => { try { await PUB.publicarRascunho(ok0, { fetchFn: fakeFetch }) } catch (e) { return String(e.message) } })()
+t('NUNCA publica em outra conta: confere o @ antes de criar mídia', /Conta incorreta/.test(msgConta ?? '') && !chamadas.some((c) => /media|media_publish/.test(c.url) && !/\?/.test(c.url)))
+t('conexão indica se a conta é a oficial', (await PUB.verificarConexao(fakeFetch)).contaOficial === false)
+delete process.env.IG_EXPECTED_USERNAME
+delete process.env.IG_ACCESS_TOKEN; delete process.env.IG_USER_ID
+t('sem credenciais a conexão diz como configurar', (await PUB.verificarConexao()).configurado === false)
+
+// ---- unidade: diretor de marketing + VIDEO_FACTORY -------------------------
+const MK = await import('../bridge/marketing.mjs')
+const VF = await import('../bridge/video-factory.mjs')
+console.log('\n[diretor de marketing]')
+const mkTmp = mkdtempSync(join(tmpdir(), 'mk-')); const mkSt = IG.createStore(join(mkTmp, 'instagram')); const mkMk = MK.createMarketingStore(mkTmp)
+const hojeStr = new Date().toISOString().slice(0, 10)
+const mk_r1 = mkSt.salvar({ tipo: 'reel', titulo: 'Reel de hoje', legenda: 'Salve este Reel', roteiro: 'cena 1', agendadoPara: `${hojeStr} 20:00` })
+const mk_p0 = MK.painel({ store: mkSt, mk: mkMk, agora: new Date(`${hojeStr}T10:00:00-03:00`), env: {} })
+t('painel: conteúdo de hoje vem dos rascunhos reais', mk_p0.conteudoDeHoje.length === 1 && mk_p0.conteudoDeHoje[0].id === mk_r1.id && mk_p0.conta === 'cristianogeraldo.ofc')
+t('painel sem métricas diz "Não tenho esse dado disponível" e não inventa', mk_p0.desempenho.disponivel === false && mk_p0.seguidoresGanhos.disponivel === false && /Não tenho dados/.test(mk_p0.recomendacao) && mk_p0.melhoresConteudos.length === 0)
+t('painel mostra a próxima ação da agenda', /^(07|08|12|18|20|23)/.test(mk_p0.proximaAcao) && mk_p0.agenda.length === 9)
+t('agenda: depois das 23:30 a próxima é amanhã', MK.proximaAcao(new Date('2026-10-08T23:45:00')).amanha === true)
+t('DIRECTOR_AUTONOMOUS não publica sozinho: cai em revisão e avisa', MK.modoDiretor({ MARKETING_DIRECTOR_MODE: 'true', DIRECTOR_AUTONOMOUS: 'true' }).modo === 'revisao' && !!MK.modoDiretor({ DIRECTOR_AUTONOMOUS: 'true' }).aviso)
+const mk_rev = MK.revisarRascunho({ id: 'x', tipo: 'reel', titulo: 'Renda extra garantida com 30% a mais', legenda: 'Os clientes da Vila Dia compraram', roteiro: 'segredo', hashtags: [] })
+t('revisão pega promessa financeira, termo interno, número sem fonte, coach e falta de CTA', mk_rev.avisos.length >= 5 && !mk_rev.aprovadoParaPublicar)
+t('revisão aprova conteúdo limpo (CTA, sem termos internos)', MK.revisarRascunho({ id: 'y', tipo: 'post', titulo: 'Clareza antes de cobrança', legenda: 'Líder que explica antes de cobrar constrói confiança. Salve para reler.', hashtags: ['lideranca'] }).aprovadoParaPublicar === true)
+mkMk.aprendizado({ proximoPasso: 'Testar gancho com pergunta' }); mkMk.campanha({ nome: 'Legado', objetivo: 'autoridade' })
+const semana = JSON.parse(readFileSync(new URL('../conteudo/semana-01.json', import.meta.url), 'utf8'))
+const imp1 = MK.importarRascunhos(semana, mkSt)
+t('semana-01: todas as peças importam como rascunho (nada publicado)', imp1.length === semana.length && semana.length >= 5 && imp1.every((x) => x.ok) && mkSt.listar('rascunho').filter((x) => x.campanha === 'Liderança com método').length === semana.length)
+t('semana-01: nenhuma peça tem aviso editorial (promessa, termo interno, CTA, coach)', imp1.every((x) => x.revisao.filter((a) => !/Sem mídia/.test(a)).length === 0))
+const primeiroStory = semana.find((x) => x.tipo === 'story')
+const mudou = MK.importarRascunhos(semana.map((x) => (x === primeiroStory ? { ...x, agendadoPara: '2026-10-30 12:00' } : x)), mkSt)
+t('importar de novo atualiza só o horário e não duplica', mudou.filter((x) => /horário atualizado/.test(x.motivo ?? '')).length === 1 && mkSt.listar().filter((x) => x.campanha === 'Liderança com método').length === semana.length)
+MK.importarRascunhos(semana, mkSt)
+t('importar de novo não duplica', MK.importarRascunhos(semana, mkSt).every((x) => !x.ok && x.motivo === 'já importado'))
+t('aprendizados e campanhas ficam registrados', mkMk.ler().aprendizados.length === 1 && mkMk.ler().campanhas.length === 1)
+t('quebra de texto respeita o limite por linha', VF.quebrar('Líder de verdade não grita e cria clareza', 12).every((l) => l.length <= 12))
+const mk_ff = await VF.detectarFfmpeg()
+if (mk_ff.ok && VF.acharFonte()) {
+  const vOut = join(mkTmp, 'videos')
+  const mk_v = await VF.produzirVideo({ titulo: 'Liderança é legado', campanha: 'Teste', cta: 'Salve e compartilhe', cenas: [{ texto: 'Líder de verdade não grita.' }, { texto: 'Cria clareza e entrega exemplo.', duracao: 3 }], base: vOut })
+  t('VIDEO_FACTORY: MP4 9:16 H.264 com áudio existe e foi validado', mk_v.ok === true && mk_v.existe === true && mk_v.validacao.resolucao === '1080x1920' && mk_v.validacao.codec === 'h264' && mk_v.validacao.audio === true)
+  t('VIDEO_FACTORY: capa e legendas existem e a pasta é por data/campanha', existsSync(mk_v.arquivos.capa) && existsSync(mk_v.arquivos.legendas) && mk_v.arquivos.video.includes(`${hojeStr}`) && mk_v.arquivos.video.includes('teste'))
+  const mk_bad = await VF.validarVideo(join(mkTmp, 'nao-existe.mp4'))
+  t('validação de arquivo inexistente nunca finge sucesso', mk_bad.ok === false && mk_bad.existe === false)
+  const mk_out = await VF.produzirVideo({ titulo: 'x', cenas: [{ texto: 'a', imagem: '../../../../etc/passwd' }], base: vOut })
+  t('VIDEO_FACTORY só lê imagens da pasta de entrada', mk_out.ok === false && /Por segurança|não encontrado/i.test(mk_out.motivo ?? ''))
+} else console.log('  ⏭  VIDEO_FACTORY ao vivo — FFmpeg/fonte não encontrados neste computador')
+rmSync(mkTmp, { recursive: true, force: true })
 
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')

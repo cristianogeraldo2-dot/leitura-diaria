@@ -1,0 +1,16 @@
+{
+  "name": "Guia do Meu Dia",
+  "short_name": "Meu Dia",
+  "description": "Cronograma diário com palavra, livro do dia e exame da noite.",
+  "lang": "pt-BR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1f1e1b",
+  "theme_color": "#2c2a26",
+  "icons": [
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"},
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

@@ -38,27 +38,46 @@ export function analyze(data) {
     vgv: num(r.vgv),
     meta: { casais: num(m.casais), vendas: num(m.vendas), vgv: num(m.vgv), cotas: num(m.cotas) },
     taxaQ: pct(div(r.q, r.casais)),
-    conversao: pct(div(r.vendas, r.q)),
+    // conversão = vendas de casais Q ÷ Q (quando o dashboard separa Q de NQ), senão vendas ÷ Q
+    conversao: pct(div(num(r.qComVenda) !== null ? r.qComVenda : r.vendas, r.q)),
+    conversaoGeral: pct(div(r.vendas, r.casais)), // casais com venda ÷ casais presentes
     gap: {
       casais: num(m.casais) !== null && num(r.casais) !== null ? m.casais - r.casais : null,
       vendas: num(m.vendas) !== null && num(r.vendas) !== null ? m.vendas - r.vendas : null,
       vgv: num(m.vgv) !== null && num(r.vgv) !== null ? m.vgv - r.vgv : null,
+      cotas: num(m.cotas) !== null && num(r.cotas) !== null ? m.cotas - r.cotas : null,
     },
     atingimentoCasais: pct(div(r.casais, m.casais)),
+    atingimentoVgv: pct(div(r.vgv, m.vgv)),
+    atingimentoCotas: pct(div(r.cotas, m.cotas)),
+    atingimentoQs: pct(div(r.totalQs, m.qs)),
+    totalQs: num(r.totalQs),
+    eficiencias: data.eficiencias ?? null,
+    atingimentoMetasEscalonadas: Object.fromEntries(
+      Object.entries(data.metasEscalonadas ?? {}).map(([k, v]) => [k, pct(div(r.cotas, v))]),
+    ),
+    propostas: num(r.propostas),
+    compradores: num(r.compradores),
+    comparativos: data.comparativos ?? null,
+    metricasDiarias: Array.isArray(data.metricasDiarias) ? data.metricasDiarias : [],
   }
 
   // Ritmo: só avaliado se o progresso do dia foi informado.
-  const prog = num(data.progressoDia)
+  const prog = num(data.progressoDia) ?? num(data.progressoMes)
   let ritmo = null
-  if (prog !== null && prog > 0 && dados.atingimentoCasais !== null) {
-    ritmo = Math.round((dados.atingimentoCasais / 100 / prog) * 1000) / 1000 // 1.0 = exatamente no ritmo
-    if (ritmo < 0.9) alerts.push({ code: 'META_ABAIXO_DO_RITMO', label: ALERT.BELOW_PACE, why: `Atingimento de casais em ${dados.atingimentoCasais}% com ${pct(prog)}% do dia decorrido.` })
-    else if (ritmo >= 0.95) alerts.push({ code: 'META_NO_RITMO', label: ALERT.ON_PACE, why: `Atingimento de casais em ${dados.atingimentoCasais}% com ${pct(prog)}% do dia decorrido.` })
-    if (ritmo < 0.9 && prog < 1 && dados.gap.casais > 0) {
-      const needed = dados.gap.casais / (1 - prog)
-      const current = r.casais / prog
+  const base = [['casais', dados.atingimentoCasais], ['VGV', dados.atingimentoVgv], ['cotas', dados.atingimentoCotas], ['Qs', dados.atingimentoQs]].find(([, v]) => v !== null)
+  if (prog !== null && prog > 0 && base) {
+    const [bn, bv] = base
+    ritmo = Math.round((bv / 100 / prog) * 1000) / 1000 // 1.0 = exatamente no ritmo
+    if (ritmo < 0.9) alerts.push({ code: 'META_ABAIXO_DO_RITMO', label: ALERT.BELOW_PACE, why: `Atingimento de ${bn} em ${bv}% com ${pct(prog)}% do dia decorrido.` })
+    else if (ritmo >= 0.95) alerts.push({ code: 'META_NO_RITMO', label: ALERT.ON_PACE, why: `Atingimento de ${bn} em ${bv}% com ${pct(prog)}% do dia decorrido.` })
+    const gapBase = bn === 'casais' ? dados.gap.casais : bn === 'VGV' ? dados.gap.vgv : bn === 'Qs' ? (num(m.qs) !== null && num(r.totalQs) !== null ? m.qs - r.totalQs : null) : dados.gap.cotas
+    const realBase = bn === 'casais' ? r.casais : bn === 'VGV' ? r.vgv : bn === 'Qs' ? r.totalQs : r.cotas
+    if (ritmo < 0.9 && prog < 1 && gapBase > 0 && num(data.progressoDia) !== null) {
+      const needed = gapBase / (1 - prog)
+      const current = realBase / prog
       if (current > 0 && needed / current <= 1.5)
-        alerts.push({ code: 'OPORTUNIDADE_RECUPERACAO', label: ALERT.RECOVERY, why: `Faltam ${dados.gap.casais} casais; exige ${Math.round((needed / current) * 100)}% do ritmo atual no restante do dia.` })
+        alerts.push({ code: 'OPORTUNIDADE_RECUPERACAO', label: ALERT.RECOVERY, why: `Faltam ${gapBase} (${bn}); exige ${Math.round((needed / current) * 100)}% do ritmo atual no restante do dia.` })
     }
   }
 
@@ -70,7 +89,9 @@ export function analyze(data) {
     alerts.push({ code: 'CONVERSAO_CAINDO', label: ALERT.CONVERSION_DROP, why: `Conversão ${dados.conversao}% contra média histórica de ${pct(avgConv)}%.` })
 
   // Captadores
-  const caps = (Array.isArray(data.captadores) ? data.captadores : []).map((c) => ({
+  const todos = Array.isArray(data.captadores) ? data.captadores : []
+  const semReg = todos.filter((c) => c.semRegistro).map((c) => c.nome)
+  const caps = todos.filter((c) => !c.semRegistro).map((c) => ({
     nome: c.nome,
     casais: num(c.casais) ?? 0,
     q: num(c.q) ?? 0,
@@ -85,7 +106,7 @@ export function analyze(data) {
     const ranking = [...caps].sort((a, b) => b.casais - a.casais || b.q - a.q)
     const baixos = caps.filter((c) => avg > 0 && c.casais < avg * 0.5).map((c) => c.nome)
     const altos = caps.filter((c) => avg > 0 && c.casais > avg * 1.3).map((c) => c.nome)
-    equipe = { captadores: caps.length, mediaCasais: Math.round(avg * 10) / 10, ranking: ranking.map((c, i) => ({ pos: i + 1, ...c })), atencao: baixos, destaque: altos }
+    equipe = { captadores: caps.length, semRegistro: semReg, mediaCasais: Math.round(avg * 10) / 10, ranking: ranking.map((c, i) => ({ pos: i + 1, ...c })), atencao: baixos, destaque: altos }
     if (baixos.length) alerts.push({ code: 'PRODUTIVIDADE_BAIXA', label: ALERT.LOW_PROD, why: `Abaixo de 50% da média da equipe: ${baixos.join(', ')}.` })
     if (altos.length) alerts.push({ code: 'PERFORMANCE_ACIMA_DA_MEDIA', label: ALERT.ABOVE_AVG, why: `Acima de 130% da média: ${altos.join(', ')}.` })
     // Gargalo: etapa com maior perda proporcional
@@ -101,5 +122,18 @@ export function analyze(data) {
     ? (f.casaisParaQ < f.qParaVenda ? 'qualificação (casal → Q)' : 'fechamento (Q → venda)')
     : null
 
-  return { available: true, dados, ritmo, equipe, gargalo, alertas: alerts, historicoDias: hist.length }
+  const avisos = []
+  let idadeDias = null
+  if (data.geradoEm) {
+    const t = Date.parse(data.geradoEm)
+    if (Number.isFinite(t)) idadeDias = Math.floor((Date.now() - t) / 86_400_000)
+    avisos.push(`Dados do dashboard gerados em ${data.geradoEm}${idadeDias !== null ? ` (há ${idadeDias} dia${idadeDias === 1 ? '' : 's'})` : ''}.`)
+    if (idadeDias !== null && idadeDias >= 2) avisos.unshift(`ATENÇÃO: dados DEFASADOS — têm ${idadeDias} dias. Não representam o dia de hoje.`)
+  }
+  if (!caps.length) avisos.push('Não tenho dados por captador (ranking e produtividade individual indisponíveis).')
+  if (prog === null) avisos.push('Progresso do dia/mês não informado: alertas de ritmo não avaliados.')
+  else if (num(data.progressoDia) === null) avisos.push(`Ritmo avaliado pelo progresso do MÊS (${pct(prog)}% dos dias ponderados até a data da carga).`)
+  for (const a of data.avisosFonte ?? []) avisos.push(a)
+  if (Array.isArray(data.derivados) && data.derivados.length) avisos.push(`Valores derivados (calculados): ${data.derivados.join(', ')}.`)
+  return { available: true, fonte: data.fonte ?? 'manual', geradoEm: data.geradoEm ?? null, idadeDias, avisos, dados, ritmo, equipe, gargalo, alertas: alerts, historicoDias: hist.length }
 }

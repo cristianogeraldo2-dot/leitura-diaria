@@ -755,6 +755,8 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
     bumpSilence()
   }
 
+  let gotAudio = false
+  let emptyStarts = 0
   const spin = () => {
     if (stopped || running) return
     rec = new Ctor()
@@ -768,12 +770,26 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
       touch()
     }
     rec.onresult = onResult
+    rec.onaudiostart = () => {
+      gotAudio = true
+      emptyStarts = 0
+    }
     rec.onerror = (ev: any) => {
       diag.lastError = String(ev.error ?? '')
       if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
         stopped = true
         diag.running = false
-        h.onError('Microphone access was refused — voice input is unavailable.')
+        h.onError(
+          'Acesso ao microfone ou ao serviço de voz foi recusado — a entrada de voz está indisponível. Verifique a permissão do microfone neste endereço e as políticas do navegador.',
+        )
+      } else if (ev.error === 'network') {
+        // O Chrome transcreve nos servidores do Google. Sem acesso a eles, ouve
+        // o som (a tela mexe) e nunca devolve texto — falha silenciosa.
+        h.onError(
+          'O reconhecimento de voz do navegador não alcança o serviço de transcrição (rede ou política). Tente o Microsoft Edge ou configure a transcrição ElevenLabs.',
+        )
+      } else if (ev.error === 'audio-capture') {
+        h.onError('Nenhum microfone disponível para o reconhecimento de voz — outro app pode estar usando-o.')
       }
     }
     rec.onend = () => {
@@ -781,7 +797,18 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
       diag.running = false
       touch()
       rec = null
-      if (!stopped) setTimeout(spin, 80)
+      // Começou e terminou sem nunca receber áudio, várias vezes seguidas:
+      // o serviço de voz não está funcionando, e isso precisa ser dito.
+      if (!gotAudio && !stopped) {
+        emptyStarts++
+        if (emptyStarts === 4) {
+          h.onError(
+            'O reconhecimento de voz é cortado assim que inicia. Causa mais comum: outra aba ou janela do JARVIS aberta, ou outro app/aba usando o microfone (Teams, Meet, Zoom) ou uma extensão com voz. Feche as outras abas e recarregue (F5). Se persistir, pode ser bloqueio do serviço de voz (rede/política): tente o Microsoft Edge. Tecle D para o diagnóstico.',
+          )
+        }
+      }
+      gotAudio = false
+      if (!stopped) setTimeout(spin, emptyStarts >= 4 ? 2000 : 80)
     }
     try {
       rec.start()

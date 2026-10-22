@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2c2a26">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Meu Dia">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Guia do Meu Dia</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { font-family:'Segoe UI', Roboto, sans-serif; background:#1f1e1b; color:#f7f4ef; min-height:100vh; }
+  .app { max-width:480px; margin:0 auto; padding:16px 14px 90px; }
+  .topo { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .topo .marca { font-size:10px; letter-spacing:3px; color:#c9bfa8; font-weight:600; }
+  .topo h1 { font-size:19px; font-weight:700; }
+  .prog { background:#2c2a26; border:1px solid #4a463d; border-radius:12px; padding:8px 12px; font-size:12px; font-weight:700; color:#e8c96a; }
+  .card { background:#2a2925; border:1px solid #4a463d; border-radius:14px; padding:14px; margin-bottom:12px; }
+  .rotulo { font-size:10px; letter-spacing:2.5px; color:#c9bfa8; font-weight:600; margin-bottom:6px; display:flex; justify-content:space-between; }
+  .verso { font-size:15px; font-style:italic; line-height:1.5; }
+  .ref { font-size:11px; color:#c9bfa8; font-weight:600; margin-top:6px; }
+  .livro { font-size:14px; font-weight:600; line-height:1.45; }
+  .tarefa { display:flex; align-items:center; gap:10px; background:#2a2925; border:1px solid #4a463d; border-radius:12px; padding:10px 12px; margin-bottom:7px; }
+  .tarefa.ativa { background:#e8c96a; color:#2c2a26; border-color:#e8c96a; }
+  .tarefa.ativa .dur { color:#6b5f35 !important; }
+  .hora { font-size:13px; font-weight:700; min-width:42px; }
+  .info { flex:1; min-width:0; }
+  .titulo { font-size:14px; font-weight:600; }
+  .dur { font-size:11px; color:#c9bfa8; }
+  .chk { width:44px; height:44px; border-radius:50%; border:2px solid #c9bfa8; background:transparent; color:#1f1e1b; font-size:18px; font-weight:700; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; padding:0; }
+  .tarefa.ativa .chk { border-color:#2c2a26; }
+  .chk.feito { background:#5a7d4f; border-color:#5a7d4f; color:#fff; }
+  .chk:active { transform:scale(.9); }
+  :focus-visible { outline:2px solid #e8c96a; outline-offset:2px; }
+  .exame textarea { width:100%; background:#1f1e1b; border:1px solid #4a463d; border-radius:10px; color:#f7f4ef; padding:9px; font-size:13px; font-family:inherit; resize:vertical; min-height:52px; margin-top:6px; }
+  .exame textarea:focus { outline:none; border-color:#e8c96a; }
+  .pergunta { font-size:13px; font-weight:600; color:#e8c96a; margin-top:10px; display:block; }
+  .botoes { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  button.acao { background:#e8c96a; color:#2c2a26; border:none; border-radius:10px; padding:12px 14px; font-size:13px; font-weight:700; cursor:pointer; }
+  button.sec { background:transparent; color:#c9bfa8; border:1px solid #4a463d; border-radius:10px; padding:12px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+  .status { font-size:12px; color:#c9bfa8; margin-top:8px; width:100%; }
+  .banner { position:fixed; left:50%; transform:translateX(-50%); bottom:18px; background:#e8c96a; color:#2c2a26; padding:12px 14px 12px 20px; border-radius:12px; font-size:14px; font-weight:700; box-shadow:0 6px 20px rgba(0,0,0,.5); display:none; max-width:92%; align-items:center; gap:12px; }
+  .banner button { background:transparent; border:none; color:#2c2a26; font-size:18px; font-weight:700; cursor:pointer; padding:4px 8px; }
+  .edit label, .campo label { display:block; font-size:11px; color:#c9bfa8; margin-top:6px; }
+  .edit input, .campo input { background:#1f1e1b; border:1px solid #4a463d; border-radius:6px; color:#f7f4ef; font-size:14px; padding:6px 8px; width:100%; margin-top:3px; }
+  .del { background:transparent; border:none; color:#d4786a; font-size:20px; cursor:pointer; width:44px; height:44px; flex-shrink:0; }
+  .vazio { color:#c9bfa8; font-size:13px; padding:10px 2px; }
+  #formAdd { display:none; }
+  .seq { text-align:center; }
+  .seq .num { font-size:34px; font-weight:800; color:#e8c96a; line-height:1; }
+  .seq .sub { font-size:12px; color:#c9bfa8; margin-top:4px; }
+  .pontos { display:flex; justify-content:center; gap:5px; margin-top:10px; flex-wrap:wrap; }
+  .pontos i { width:14px; height:14px; border-radius:50%; background:#3a3832; display:block; }
+  .pontos i.ok { background:#5a7d4f; } .pontos i.meio { background:#8a7a3c; } .pontos i.hoje { outline:2px solid #e8c96a; }
+  .guia .txt { font-size:14px; line-height:1.5; margin-top:8px; }
+  .guia h3 { font-size:11px; letter-spacing:2px; color:#c9bfa8; margin:12px 0 4px; font-weight:600; }
+  .guia ul { padding-left:18px; font-size:13px; line-height:1.5; }
+  .guia .sug { border:1px solid #4a463d; border-radius:10px; padding:10px; margin-top:8px; font-size:13px; line-height:1.45; }
+  .guia .sug .botoes { margin-top:8px; }
+  .guia .perg { color:#e8c96a; font-weight:600; font-size:14px; margin-top:6px; }
+  .guia .aviso { font-size:11px; color:#c9bfa8; margin-top:8px; line-height:1.4; }
+  .guia input { background:#1f1e1b; border:1px solid #4a463d; border-radius:6px; color:#f7f4ef; font-size:14px; padding:8px; width:100%; margin-top:6px; }
+
+  .anel { text-align:center; padding:10px; }
+  .anel svg { width:100%; max-width:260px; height:auto; }
+  .anel .legenda { font-size:11px; color:#c9bfa8; margin-top:4px; }
+  .plano select { background:#1f1e1b; border:1px solid #4a463d; border-radius:8px; color:#f7f4ef; font-size:13px; padding:6px 8px; max-width:55%; }
+  .plano .prox { font-size:16px; font-weight:700; margin:8px 0 6px; }
+  .barra { height:8px; background:#1f1e1b; border-radius:6px; overflow:hidden; }
+  .barra > div { height:100%; background:#5a7d4f; width:0; transition:width .3s; }
+  .plano .meta { font-size:11px; color:#c9bfa8; margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topo">
+    <div>
+      <div class="marca">GUIA DO MEU DIA</div>
+      <h1 id="dataHoje"></h1>
+    </div>
+    <div class="prog" id="progresso" aria-live="polite">0% feito</div>
+  </div>
+
+  <div class="card anel">
+    <svg id="anel" viewBox="0 0 200 200" role="img" aria-label="Anel do dia"></svg>
+    <div class="legenda"><span style="color:#5a7d4f">⬤</span> feito &nbsp; <span style="color:#e8c96a">⬤</span> agora/próximo &nbsp; <span style="color:#6a665b">⬤</span> pendente</div>
+  </div>
+
+  <div class="card seq">
+    <div class="rotulo">SEQUÊNCIA</div>
+    <div class="num" id="seqNum">0</div>
+    <div class="sub" id="seqSub"></div>
+    <div class="pontos" id="seqPontos" aria-hidden="true"></div>
+  </div>
+
+  <div class="card guia">
+    <div class="rotulo"><span>GUIA IA</span><span id="guiaData"></span></div>
+    <div id="guiaCorpo"><div class="txt">Peça uma leitura dos seus últimos dias: padrões, o que ajustar e uma pergunta para você não viver no automático.</div></div>
+    <div class="botoes">
+      <button class="acao" id="btnGuia">✨ Pedir meu guia</button>
+      <button class="sec" id="btnChave">🔑 Chave</button>
+    </div>
+    <div id="guiaChave" style="display:none">
+      <input id="chaveIA" type="password" placeholder="Chave da API da Anthropic (sk-ant-...)" autocomplete="off" aria-label="Chave da API">
+      <div class="botoes"><button class="acao" id="btnChaveSalva">Salvar chave</button><button class="sec" id="btnChaveRemove">Remover</button></div>
+      <div class="aviso">A chave fica só neste aparelho e é enviada apenas à Anthropic. Quem tiver acesso ao seu navegador poderia vê-la, então use uma chave só para isto, com limite de gasto baixo. Ao pedir o guia, o resumo dos seus últimos 14 dias (inclusive o exame da noite) é enviado à Anthropic.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="rotulo"><span>PALAVRA DO DIA</span><span id="diaAno"></span></div>
+    <div class="verso" id="verso"></div>
+    <div class="ref" id="versoRef"></div>
+  </div>
+
+  <div class="card">
+    <div class="rotulo">LIVRO DO DIA</div>
+    <div class="livro" id="livro"></div>
+  </div>
+
+  <div class="card plano">
+    <div class="rotulo"><span>LEITURA DA BÍBLIA</span>
+      <select id="planoSel" aria-label="Plano de leitura"></select></div>
+    <div class="prox" id="planoProx"></div>
+    <div class="barra"><div id="planoBarra"></div></div>
+    <div class="meta" id="planoMeta"></div>
+    <div class="botoes"><button class="acao" id="btnLido">✓ Li hoje</button>
+      <button class="sec" id="btnPlanoZera">Reiniciar plano</button></div>
+  </div>
+
+  <div class="rotulo" style="margin:4px 0 8px;">CRONOGRAMA</div>
+  <div id="lista"></div>
+
+  <div id="formAdd" class="card campo">
+    <div class="rotulo">NOVO BLOCO</div>
+    <label for="nHora">Hora</label>
+    <input id="nHora" type="time" value="07:00">
+    <label for="nTitulo">Título</label>
+    <input id="nTitulo" type="text" placeholder="ex: Estudo" maxlength="80">
+    <label for="nDur">Duração</label>
+    <input id="nDur" type="text" placeholder="ex: 2h" maxlength="20">
+    <div class="botoes"><button class="acao" id="btnAdd">Adicionar</button></div>
+  </div>
+
+  <div class="card exame">
+    <div class="rotulo">EXAME DA NOITE</div>
+    <label class="pergunta" for="e1">1. Onde vi Deus agindo no meu dia hoje?</label>
+    <textarea id="e1"></textarea>
+    <label class="pergunta" for="e2">2. O que fiz bem em trabalho, estudo e família?</label>
+    <textarea id="e2"></textarea>
+    <label class="pergunta" for="e3">3. O que preciso ajustar com propósito amanhã?</label>
+    <textarea id="e3"></textarea>
+  </div>
+
+  <div class="botoes">
+    <button class="acao" id="btnNotif">🔔 Ativar alertas do dia</button>
+    <button class="sec" id="btnBloco">+ Bloco</button>
+    <button class="sec" id="btnEditar">✏️ Editar</button>
+    <button class="sec" id="btnNovoDia">↺ Novo dia</button>
+    <button class="sec" id="btnExportar">⬇ Exportar</button>
+    <button class="sec" id="btnImportar">⬆ Importar</button>
+    <input type="file" id="arqImportar" accept="application/json" hidden>
+    <div class="status" id="statusNotif"></div>
+  </div>
+</div>
+<div class="banner" id="banner" role="status"><span id="bannerTxt"></span><button id="bannerFecha" aria-label="Fechar aviso">✕</button></div>
+
+<script>
+const VERSOS = [
+ ["Tudo tem o seu tempo determinado, e há tempo para todo propósito debaixo do céu.","Eclesiastes 3:1"],
+ ["Lâmpada para os meus pés é a tua palavra e luz para o meu caminho.","Salmos 119:105"],
+ ["Posso todas as coisas naquele que me fortalece.","Filipenses 4:13"],
+ ["Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará.","Salmos 37:5"],
+ ["O amor é paciente, é benigno; o amor não arde em ciúmes, não se ufana, não se ensoberbece.","1 Coríntios 13:4"],
+ ["Bem-aventurado o homem que não anda segundo o conselho dos ímpios.","Salmos 1:1"],
+ ["O temor do Senhor é o princípio da sabedoria.","Provérbios 9:10"],
+ ["Não temas, porque eu sou contigo; não te assombres, porque eu sou o teu Deus.","Isaías 41:10"],
+ ["Vigiai e orai, para que não entreis em tentação.","Mateus 26:41"],
+ ["Melhor é o fim das coisas do que o seu princípio; melhor é o paciente do que o altivo de espírito.","Eclesiastes 7:8"],
+ ["O coração do homem traça o seu caminho, mas o Senhor lhe dirige os passos.","Provérbios 16:9"],
+ ["Não te deixes vencer do mal, mas vence o mal com o bem.","Romanos 12:21"],
+ ["O Senhor é a minha porção, diz a minha alma; portanto, esperarei nele.","Lamentações 3:24"],
+ ["Sê forte e corajoso; não temas, nem te espantes, porque o Senhor, teu Deus, é contigo por onde quer que andares.","Josué 1:9"],
+ ["Agora, pois, permanecem a fé, a esperança e o amor, estes três; porém o maior destes é o amor.","1 Coríntios 13:13"],
+ ["E tudo o que fizerdes, fazei-o de todo o coração, como ao Senhor e não aos homens.","Colossenses 3:23"],
+ ["Confia no Senhor de todo o teu coração e não te estribes no teu próprio entendimento.","Provérbios 3:5"],
+ ["Dai a César o que é de César e a Deus o que é de Deus.","Mateus 22:21"],
+ ["Inútil vos será levantar de madrugada, repousar tarde, comer o pão de dores, pois aos seus amados ele o dá enquanto dormem.","Salmos 127:2"],
+ ["O Senhor te guiará continuamente, fartará a tua alma em lugares áridos.","Isaías 58:11"],
+ ["O temor do Senhor é o princípio do conhecimento, mas os loucos desprezam a sabedoria e a instrução.","Provérbios 1:7"],
+ ["Melhor é um punhado com descanso do que ambas as mãos cheias com trabalho e correr atrás do vento.","Eclesiastes 4:6"],
+ ["O trabalho do justo conduz à vida; o rendimento do perverso, ao pecado.","Provérbios 10:16"],
+ ["Bem-aventurado o homem que acha sabedoria, e o homem que adquire conhecimento.","Provérbios 3:13"],
+ ["Porque eu bem sei os pensamentos que tenho a vosso respeito, diz o Senhor; pensamentos de paz e não de mal.","Jeremias 29:11"],
+ ["Mas vós, esforçai-vos, e não desfaleçam as vossas mãos, porque a vossa obra será recompensada.","2 Crônicas 15:7"],
+ ["A mão dos diligentes dominará, mas a negligência será tributária.","Provérbios 12:24"],
+ ["Certamente que a bondade e a misericórdia me seguirão todos os dias da minha vida.","Salmos 23:6"],
+ ["Os planos do diligente tendem à abundância.","Provérbios 21:5"],
+ ["Pois melhor é um dia nos teus átrios do que mil fora deles.","Salmos 84:10"],
+ ["E a paz de Deus, que excede todo o entendimento, guardará o vosso coração e os vossos pensamentos em Cristo Jesus.","Filipenses 4:7"],
+ ["Quanto ao mais, irmãos, tudo o que é verdadeiro, tudo o que é respeitável, tudo o que é justo, nisso pensai.","Filipenses 4:8"],
+ ["O ladrão vem somente para roubar, matar e destruir; eu vim para que tenham vida, e a tenham em abundância.","João 10:10"],
+ ["Atentai, pois, diligentemente para como andais, não como insensatos, e sim como sábios.","Efésios 5:15"],
+ ["Acima de tudo, porém, tende amor intenso uns para com os outros, porque o amor cobre multidão de pecados.","1 Pedro 4:8"],
+ ["Ora, a fé é a certeza de coisas que se esperam, a convicção de fatos que se não veem.","Hebreus 11:1"],
+];
+const LIVROS = [
+ "Os 7 Hábitos das Pessoas Altamente Eficazes — Stephen Covey",
+ "Pai Rico, Pai Pobre — Robert Kiyosaki",
+ "O Homem Mais Rico da Babilônia — George S. Clason",
+ "A Bíblia de Vendas — Jeffrey Gitomer",
+ "Desenvolvendo o Líder que Está em Você — John Maxwell",
+ "Inteligência Emocional — Daniel Goleman",
+ "O Poder do Hábito — Charles Duhigg",
+ "Quem Mexeu no Meu Queijo? — Spencer Johnson",
+ "Trabalho Focado (Deep Work) — Cal Newport",
+ "Essencialismo — Greg McKeown",
+ "Mindset — Carol Dweck",
+ "Como Fazer Amigos e Influenciar Pessoas — Dale Carnegie",
+ "A Cabana — William P. Young",
+ "O Peregrino — John Bunyan",
+ "Cristianismo Puro e Simples — C.S. Lewis",
+ "Milagres — C.S. Lewis",
+ "Crazy Love — Francis Chan",
+ "O Desafio do Amor — Stephen e Alex Kendrick",
+ "Coração Selvagem — John Eldredge",
+ "O Homem ao Máximo — Ed Cole",
+ "Provérbios — leitura de 1 capítulo por dia",
+ "A Arte de Fazer Acontecer — David Allen",
+ "Primeiro, Deus — Mark Batterson",
+];
+const PADRAO = [
+ {hora:"06:00", titulo:"Despertar & Oração", dur:"30 min", intencao:"Entrego meu dia a Deus"},
+ {hora:"06:30", titulo:"Leitura da Bíblia", dur:"30 min", intencao:"Alimento para a alma"},
+ {hora:"07:00", titulo:"Exercício", dur:"45 min", intencao:"Cuido do templo de Deus"},
+ {hora:"08:00", titulo:"Trabalho", dur:"4h", intencao:"Provisão com excelência"},
+ {hora:"12:00", titulo:"Almoço & Família", dur:"1h", intencao:"Presença, não presente"},
+ {hora:"13:00", titulo:"Trabalho", dur:"3h", intencao:"Servir com propósito"},
+ {hora:"16:00", titulo:"Estudo", dur:"2h", intencao:"Crescer em conhecimento"},
+ {hora:"18:00", titulo:"Família", dur:"2h", intencao:"Amar quem me é próximo"},
+ {hora:"20:00", titulo:"Leitura", dur:"1h", intencao:"Mente renovada"},
+ {hora:"21:30", titulo:"Reflexão do Dia", dur:"30 min", intencao:"Exame da noite"},
+];
+const MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+const DIAS=["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+const PLANOS = {
+  proverbios:{nome:"Provérbios", livro:"Provérbios", caps:31},
+  joao:{nome:"Evangelho de João", livro:"João", caps:21},
+  mateus:{nome:"Evangelho de Mateus", livro:"Mateus", caps:28},
+  salmos:{nome:"Salmos", livro:"Salmos", caps:150},
+  atos:{nome:"Atos dos Apóstolos", livro:"Atos", caps:28},
+};
+const JANELA_ALERTA = 5; // minutos: avisa atrasado se o timer foi adiado
+const $ = id => document.getElementById(id);
+
+// ---------- armazenamento seguro ----------
+function lerJSON(k, padrao){
+  try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : padrao; } catch(e){ return padrao; }
+}
+function gravar(k, v){
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){}
+}
+
+// ---------- estado ----------
+let chave, feitos, notificados;
+let editMode = false;
+let tarefas = (lerJSON("gd_tarefas_v1", null) || PADRAO.map((t,i)=>({...t,id:"p"+i})))
+  .map(t=>({...t, id:String(t.id)}));
+
+function dataLocal(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function novoId(){ return "b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function salva(){ gravar("gd_tarefas_v1", tarefas); gravar("gd_feitos_"+chave, feitos);
+  gravar("gd_resumo_"+chave, {f:tarefas.filter(t=>feitos[t.id]).length, t:tarefas.length}); }
+
+function carregaDia(){
+  const hoje = new Date();
+  chave = dataLocal(hoje);
+  feitos = lerJSON("gd_feitos_"+chave, {});
+  notificados = lerJSON("gd_notif_"+chave, {});
+  const ex = lerJSON("gd_exame_"+chave, {});
+  $("e1").value = ex.e1||""; $("e2").value = ex.e2||""; $("e3").value = ex.e3||"";
+  const diaAno = Math.floor((new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate()) - new Date(hoje.getFullYear(),0,0)) / 864e5);
+  $("dataHoje").textContent = DIAS[hoje.getDay()]+", "+hoje.getDate()+" de "+MESES[hoje.getMonth()];
+  $("diaAno").textContent = "Dia "+diaAno+" do ano";
+  const v = VERSOS[diaAno % VERSOS.length];
+  $("verso").textContent = "“"+v[0]+"”"; $("versoRef").textContent = v[1];
+  $("livro").textContent = "📖 "+LIVROS[diaAno % LIVROS.length];
+  if (typeof renderPlano==="function" && typeof plano!=="undefined") renderPlano();
+}
+function salvaExame(){ gravar("gd_exame_"+chave, {e1:$("e1").value, e2:$("e2").value, e3:$("e3").value}); }
+
+function paraMin(h){ const [a,b]=(h||"00:00").split(":"); return parseInt(a)*60+parseInt(b); }
+function agoraMin(){ const n=new Date(); return n.getHours()*60+n.getMinutes(); }
+
+// ---------- DOM seguro ----------
+function el(tag, props, ...filhos){
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(props||{})){
+    if (k==="class") e.className = v;
+    else if (k==="text") e.textContent = v;
+    else if (k.startsWith("on")) e[k] = v;
+    else e.setAttribute(k, v);
+  }
+  filhos.forEach(f=>f && e.appendChild(f));
+  return e;
+}
+function campoEdicao(rotulo, tipo, valor, max, aoMudar){
+  const id = "ed"+Math.random().toString(36).slice(2,8);
+  const i = el("input", {id, type:tipo, maxlength:max});
+  i.value = valor;
+  i.onchange = () => aoMudar(i.value);
+  return [el("label", {for:id, text:rotulo}), i];
+}
+
+function render(){
+  const agora = agoraMin();
+  tarefas.sort((a,b)=>paraMin(a.hora)-paraMin(b.hora));
+  let prox = null;
+  tarefas.forEach(t=>{ if(!feitos[t.id] && paraMin(t.hora)>=agora && (prox===null||paraMin(t.hora)<prox)) prox=paraMin(t.hora); });
+  const lista = $("lista");
+  lista.replaceChildren();
+  if (!tarefas.length) lista.appendChild(el("div", {class:"vazio", text:"Nenhum bloco. Use “+ Bloco” para adicionar."}));
+  tarefas.forEach(t=>{
+    const ativa = !feitos[t.id] && paraMin(t.hora)===prox;
+    const row = el("div", {class:"tarefa"+(ativa?" ativa":"")});
+    if (editMode){
+      const info = el("div", {class:"info edit"});
+      [
+        campoEdicao("Hora","time",t.hora,5,v=>{ if(v){t.hora=v; salva(); render();} }),
+        campoEdicao("Título","text",t.titulo,80,v=>{ t.titulo=v.trim()||t.titulo; salva(); render(); }),
+        campoEdicao("Duração","text",t.dur,20,v=>{ t.dur=v.trim(); salva(); render(); }),
+        campoEdicao("Intenção","text",t.intencao||"",120,v=>{ t.intencao=v.trim(); salva(); render(); }),
+      ].forEach(par=>par.forEach(n=>info.appendChild(n)));
+      row.appendChild(info);
+      row.appendChild(el("button", {class:"del", type:"button", "aria-label":"Excluir bloco "+t.titulo, text:"✕",
+        onclick:()=>{ if(!confirm("Excluir “"+t.titulo+"”?")) return;
+          tarefas=tarefas.filter(x=>x.id!==t.id); delete feitos[t.id]; salva(); render(); }}));
+    } else {
+      const feito = !!feitos[t.id];
+      row.appendChild(el("div", {class:"hora", text:t.hora}));
+      row.appendChild(el("div", {class:"info"},
+        el("div", {class:"titulo", text:t.titulo}),
+        el("div", {class:"dur", text:t.dur+(t.intencao?" · “"+t.intencao+"”":"")})));
+      row.appendChild(el("button", {class:"chk"+(feito?" feito":""), type:"button",
+        "aria-pressed":String(feito), "aria-label":(feito?"Desmarcar ":"Concluir ")+t.titulo, text:feito?"✓":"",
+        onclick:()=>{ feitos[t.id]=!feitos[t.id]; salva(); render(); }}));
+    }
+    lista.appendChild(row);
+  });
+  const total = tarefas.length;
+  const done = tarefas.filter(t=>feitos[t.id]).length;
+  $("progresso").textContent = (total ? Math.round(done/total*100) : 0)+"% feito";
+  renderAnel(prox);
+  if (typeof renderSequencia==="function") renderSequencia();
+}
+
+// ---------- anel do dia ----------
+function duracaoMin(d){
+  const t = String(d||"").toLowerCase();
+  const h = t.match(/(\d+(?:[.,]\d+)?)\s*h/), m = t.match(/(\d+)\s*min/);
+  const total = (h ? parseFloat(h[1].replace(",","."))*60 : 0) + (m ? parseInt(m[1]) : 0);
+  return total > 0 ? Math.round(total) : 30;
+}
+function svgEl(tag, attrs){
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k, v);
+  return e;
+}
+function renderAnel(prox){
+  const svg = $("anel"); svg.replaceChildren();
+  const C = 100, R = 78;
+  if (!tarefas.length){ return; }
+  const blocos = tarefas.map(t=>({t, ini:paraMin(t.hora), dur:duracaoMin(t.dur)}));
+  // janela do dia: do primeiro início ao último fim (limitada a 24h)
+  let ini = Math.floor(Math.min(...blocos.map(b=>b.ini))/60)*60;
+  let fim = Math.min(ini+1440, Math.ceil(Math.max(...blocos.map(b=>b.ini+b.dur))/60)*60);
+  if (fim - ini < 360) fim = ini + 360;
+  const span = fim - ini;
+  const ang = min => (Math.max(0, Math.min(span, min-ini)) / span) * 360;
+  const pt = (a, r) => { const rad = (a-90)*Math.PI/180; return [C + r*Math.cos(rad), C + r*Math.sin(rad)]; };
+  const arco = (a1, a2) => {
+    const [x1,y1] = pt(a1,R), [x2,y2] = pt(a2,R);
+    return "M"+x1.toFixed(2)+" "+y1.toFixed(2)+" A"+R+" "+R+" 0 "+((a2-a1)>180?1:0)+" 1 "+x2.toFixed(2)+" "+y2.toFixed(2);
+  };
+  svg.appendChild(svgEl("circle",{cx:C,cy:C,r:R,fill:"none",stroke:"#33312c","stroke-width":16}));
+  blocos.forEach(b=>{
+    const a1 = ang(b.ini)+0.8, a2 = ang(b.ini+b.dur)-0.8;
+    if (a2 - a1 < 0.5) return;
+    const feito = !!feitos[b.t.id];
+    const ativa = !feito && b.ini === prox;
+    const cor = feito ? "#5a7d4f" : ativa ? "#e8c96a" : "#6a665b";
+    const caminho = svgEl("path",{d:arco(a1, Math.min(a2, 359.9)),fill:"none",stroke:cor,"stroke-width":16,"stroke-linecap":"butt"});
+    const tt = svgEl("title"); tt.textContent = b.t.hora+" — "+b.t.titulo+" ("+b.t.dur+")";
+    caminho.appendChild(tt); svg.appendChild(caminho);
+  });
+  // marcas de hora
+  for (let m = ini; m <= fim && (m-ini)/60 <= 24; m += 360){
+    if (m === fim && span === 1440) break;
+    const a = ang(m), [x1,y1] = pt(a,R-12), [x2,y2] = pt(a,R-18), [tx,ty] = pt(a,R-27);
+    svg.appendChild(svgEl("line",{x1,y1,x2,y2,stroke:"#8a8472","stroke-width":1}));
+    const tx_ = svgEl("text",{x:tx,y:ty+3,"text-anchor":"middle","font-size":8,fill:"#8a8472"});
+    tx_.textContent = String(Math.floor(m/60)%24).padStart(2,"0")+"h"; svg.appendChild(tx_);
+  }
+  // ponteiro do agora
+  const agora = agoraMin();
+  if (agora >= ini && agora <= fim){
+    const a = ang(agora), [x1,y1] = pt(a,R-12), [x2,y2] = pt(a,R+12);
+    svg.appendChild(svgEl("line",{x1,y1,x2,y2,stroke:"#f7f4ef","stroke-width":3,"stroke-linecap":"round"}));
+  }
+  // centro
+  const total = tarefas.length, done = tarefas.filter(t=>feitos[t.id]).length;
+  const pc = svgEl("text",{x:C,y:C-2,"text-anchor":"middle","font-size":26,"font-weight":700,fill:"#e8c96a"});
+  pc.textContent = Math.round(done/total*100)+"%"; svg.appendChild(pc);
+  const proxBloco = blocos.find(b=>!feitos[b.t.id] && b.ini === prox);
+  const sub = svgEl("text",{x:C,y:C+16,"text-anchor":"middle","font-size":9,fill:"#c9bfa8"});
+  const txt = proxBloco ? proxBloco.t.hora+" "+proxBloco.t.titulo : (done===total ? "Dia completo 🙏" : "Sem próximo bloco");
+  sub.textContent = txt.length > 24 ? txt.slice(0,23)+"…" : txt; svg.appendChild(sub);
+  svg.setAttribute("aria-label","Anel do dia: "+done+" de "+total+" blocos feitos. "+txt);
+}
+
+// ---------- plano de leitura ----------
+let plano = lerJSON("gd_plano_v1", null) || {};
+plano = {plano: PLANOS[plano.plano] ? plano.plano : "proverbios", prog: plano.prog||{}, feitoEm: plano.feitoEm||{}};
+function salvaPlano(){ gravar("gd_plano_v1", plano); }
+function renderPlano(){
+  const sel = $("planoSel");
+  if (!sel.options.length) Object.entries(PLANOS).forEach(([k,v])=>sel.appendChild(el("option",{value:k,text:v.nome})));
+  sel.value = plano.plano;
+  const pl = PLANOS[plano.plano], n = plano.prog[plano.plano]||0, jaHoje = plano.feitoEm[plano.plano]===chave;
+  const concluido = n >= pl.caps;
+  $("planoProx").textContent = concluido ? "Plano concluído 🎉" : (jaHoje ? "Hoje: " : "Próximo: ")+pl.livro+" "+(jaHoje ? n : n+1);
+  $("planoBarra").style.width = Math.round(n/pl.caps*100)+"%";
+  $("planoMeta").textContent = n+" de "+pl.caps+" capítulos lidos";
+  const b = $("btnLido");
+  b.textContent = jaHoje ? "↩ Desfazer leitura de hoje" : "✓ Li hoje";
+  b.disabled = concluido && !jaHoje;
+  b.style.opacity = b.disabled ? .5 : 1;
+}
+function marcaLido(){
+  const k = plano.plano, pl = PLANOS[k], n = plano.prog[k]||0;
+  if (plano.feitoEm[k]===chave){ plano.prog[k] = Math.max(0,n-1); delete plano.feitoEm[k]; }
+  else if (n < pl.caps){ plano.prog[k] = n+1; plano.feitoEm[k] = chave; mostra("Leitura registrada: "+pl.livro+" "+(n+1)+" 🙏"); }
+  salvaPlano(); renderPlano();
+}
+$("planoSel").onchange = e => { plano.plano = e.target.value; salvaPlano(); renderPlano(); };
+$("btnLido").onclick = marcaLido;
+$("btnPlanoZera").onclick = () => { if(!confirm("Reiniciar o plano “"+PLANOS[plano.plano].nome+"” do início?")) return;
+  plano.prog[plano.plano]=0; delete plano.feitoEm[plano.plano]; salvaPlano(); renderPlano(); };
+
+// ---------- sequência de dias ----------
+const META_DIA = 0.7; // dia "cumprido" = 70% dos blocos feitos
+function addDias(d, n){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()+n); }
+function pctDia(dataStr){
+  const r = lerJSON("gd_resumo_"+dataStr, null);
+  if (r && r.t) return r.f / r.t;
+  const f = lerJSON("gd_feitos_"+dataStr, null);
+  if (!f || !tarefas.length) return null;
+  return Object.keys(f).filter(k=>f[k]).length / tarefas.length;
+}
+function sequencias(){
+  const hoje = new Date();
+  const datas = [];
+  try {
+    for (let i=0;i<localStorage.length;i++){
+      const m = localStorage.key(i).match(/^gd_(?:feitos|resumo)_(\d{4}-\d{2}-\d{2})$/);
+      if (m) datas.push(m[1]);
+    }
+  } catch(e){}
+  const ok = new Set([...new Set(datas)].filter(d=>(pctDia(d)||0) >= META_DIA));
+  // sequência atual: hoje conta se já cumprido; senão, parte de ontem
+  let d = ok.has(chave) ? hoje : addDias(hoje,-1), atual = 0;
+  while (ok.has(dataLocal(d))) { atual++; d = addDias(d,-1); }
+  // melhor sequência
+  const ord = [...ok].sort(); let melhor = 0, run = 0, ant = null;
+  ord.forEach(x=>{
+    const [y,m,dd] = x.split("-").map(Number);
+    const esperado = ant ? dataLocal(addDias(ant,1)) : null;
+    run = (esperado===x) ? run+1 : 1; melhor = Math.max(melhor, run); ant = new Date(y,m-1,dd);
+  });
+  return {atual, melhor, hojeOk: ok.has(chave)};
+}
+function renderSequencia(){
+  const s = sequencias();
+  $("seqNum").textContent = s.atual+(s.atual===1?" dia":" dias");
+  const faltam = Math.ceil(META_DIA*tarefas.length) - tarefas.filter(t=>feitos[t.id]).length;
+  $("seqSub").textContent = (s.hojeOk ? "Hoje está cumprido. " : "Cumpra "+Math.round(META_DIA*100)+"% dos blocos hoje"+(faltam>0?" (faltam "+faltam+") ":" ")+"para manter. ")+"Melhor: "+s.melhor+".";
+  const box = $("seqPontos"); box.replaceChildren();
+  for (let i=13;i>=0;i--){
+    const d = addDias(new Date(),-i), p = pctDia(dataLocal(d));
+    box.appendChild(el("i",{class:(p>=META_DIA?"ok":p>0?"meio":"")+(i===0?" hoje":""), title:dataLocal(d)}));
+  }
+}
+
+// ---------- guia IA ----------
+const MODELO_IA = "claude-sonnet-5-5";
+function lerChave(){ try { return localStorage.getItem("gd_ia_key")||""; } catch(e){ return ""; } }
+function resumoParaIA(){
+  const dias = [];
+  for (let i=13;i>=0;i--){
+    const ds = dataLocal(addDias(new Date(),-i));
+    const f = lerJSON("gd_feitos_"+ds, null), ex = lerJSON("gd_exame_"+ds, {});
+    if (!f && !(ex.e1||ex.e2||ex.e3)) continue;
+    const cl = t => String(t||"").slice(0,300);
+    dias.push({data:ds, feitos:tarefas.filter(t=>f&&f[t.id]).map(t=>t.hora+" "+t.titulo),
+      nao_feitos:tarefas.filter(t=>!(f&&f[t.id])).map(t=>t.hora+" "+t.titulo),
+      exame:{deus_agindo:cl(ex.e1), fiz_bem:cl(ex.e2), ajustar:cl(ex.e3)}});
+  }
+  const g = lerJSON("gd_guia_v1", {historico:[]});
+  const pl = PLANOS[plano.plano];
+  return {hoje:chave, hora_agora:new Date().toTimeString().slice(0,5), cronograma:tarefas.map(t=>({hora:t.hora,titulo:t.titulo,dur:t.dur,intencao:t.intencao})),
+    sequencia:sequencias(), plano_biblia:{plano:pl.nome, capitulos_lidos:plano.prog[plano.plano]||0, total:pl.caps},
+    ultimos_dias:dias, memoria_do_guia:(g.historico||[]).slice(-6)};
+}
+const SISTEMA_IA = `Você é o Guia do Meu Dia: um mentor prático, direto e caloroso, de visão cristã, que ajuda o usuário a viver com propósito e não no automático.
+Receba o JSON com o cronograma, a sequência de dias, os últimos dias (feitos/não feitos e o exame da noite) e a memória de conselhos anteriores (o que ele aplicou ou dispensou).
+Aprenda com a memória: não repita o que ele dispensou; aprofunde o que funcionou. Use só o que está nos dados; se faltar informação, diga e peça o registro.
+Responda SOMENTE com JSON válido, sem texto fora dele, neste formato:
+{"leitura":"2-3 frases honestas sobre como estão os dias dele","padroes":["até 3 padrões observados nos dados"],"sugestoes":[{"texto":"ação concreta e pequena","bloco":{"hora":"HH:MM","titulo":"...","dur":"30 min","intencao":"..."}}],"pergunta":"uma pergunta de reflexão profunda e específica ao caso dele"}
+"bloco" é opcional (use só quando a sugestão for um novo bloco no cronograma). No máximo 3 sugestões. Português do Brasil, sem floreio.`;
+
+async function chamaIA(){
+  const chaveIA = lerChave();
+  if (!chaveIA) throw new Error("Cadastre sua chave em “🔑 Chave”.");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":chaveIA,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:MODELO_IA, max_tokens:1500, system:SISTEMA_IA, messages:[{role:"user",content:JSON.stringify(resumoParaIA())}]})
+  });
+  if (!r.ok){ const e = await r.json().catch(()=>({})); throw new Error((e.error&&e.error.message)||("Erro "+r.status)); }
+  const j = await r.json();
+  const txt = (j.content||[]).map(c=>c.text||"").join("");
+  const ini = txt.indexOf("{"), fim = txt.lastIndexOf("}");
+  if (ini<0) throw new Error("Resposta inesperada do guia.");
+  return JSON.parse(txt.slice(ini, fim+1));
+}
+function registraMemoria(resp, extra){
+  const g = lerJSON("gd_guia_v1", {historico:[]});
+  g.historico = g.historico||[];
+  let h = g.historico.find(x=>x.data===chave);
+  if (!h){ h = {data:chave, leitura:String(resp.leitura||"").slice(0,300), aplicadas:[], dispensadas:[]}; g.historico.push(h); }
+  if (extra && extra.aplicada) h.aplicadas.push(extra.aplicada.slice(0,120));
+  if (extra && extra.dispensada) h.dispensadas.push(extra.dispensada.slice(0,120));
+  g.historico = g.historico.slice(-10); g.ultima = {data:chave, resp};
+  gravar("gd_guia_v1", g);
+}
+function lista(titulo, itens){
+  if (!itens || !itens.length) return null;
+  const ul = el("ul"); itens.forEach(i=>ul.appendChild(el("li",{text:String(i)})));
+  return el("div",{}, el("h3",{text:titulo}), ul);
+}
+function renderGuia(resp){
+  const box = $("guiaCorpo"); box.replaceChildren();
+  $("guiaData").textContent = resp && resp._data ? resp._data : "";
+  if (!resp){ box.appendChild(el("div",{class:"txt",text:"Peça uma leitura dos seus últimos dias: padrões, o que ajustar e uma pergunta para você não viver no automático."})); return; }
+  box.appendChild(el("div",{class:"txt",text:String(resp.leitura||"")}));
+  const p = lista("PADRÕES", (resp.padroes||[]).slice(0,3)); if (p) box.appendChild(p);
+  if ((resp.sugestoes||[]).length) box.appendChild(el("h3",{text:"SUGESTÕES"}));
+  (resp.sugestoes||[]).slice(0,3).forEach(sg=>{
+    const card = el("div",{class:"sug"}, el("div",{text:String(sg.texto||"")}));
+    const b = sg.bloco, valido = b && /^([01]\d|2[0-3]):[0-5]\d$/.test(String(b.hora||"")) && b.titulo;
+    const bt = el("div",{class:"botoes"});
+    if (valido) bt.appendChild(el("button",{class:"acao",type:"button",text:"+ Adicionar "+b.hora+" "+String(b.titulo).slice(0,30),onclick:()=>{
+      tarefas.push({id:novoId(),hora:b.hora,titulo:String(b.titulo).slice(0,80),dur:String(b.dur||"").slice(0,20),intencao:String(b.intencao||"").slice(0,120)});
+      salva(); render(); registraMemoria(resp,{aplicada:String(sg.texto||b.titulo)}); card.remove(); mostra("Bloco adicionado ao cronograma.");}}));
+    bt.appendChild(el("button",{class:"sec",type:"button",text:"Dispensar",onclick:()=>{ registraMemoria(resp,{dispensada:String(sg.texto||"")}); card.remove(); }}));
+    card.appendChild(bt); box.appendChild(card);
+  });
+  if (resp.pergunta){ box.appendChild(el("h3",{text:"PARA REFLETIR HOJE"})); box.appendChild(el("div",{class:"perg",text:String(resp.pergunta)})); }
+}
+async function pedirGuia(){
+  const b = $("btnGuia"); b.disabled = true; b.textContent = "Pensando…";
+  try {
+    const resp = await chamaIA(); resp._data = chave;
+    registraMemoria(resp); renderGuia(resp);
+  } catch(e){
+    $("guiaCorpo").replaceChildren(el("div",{class:"txt",text:"Não consegui falar com o guia: "+(e.message||e)}));
+  } finally { b.disabled = false; b.textContent = "✨ Pedir meu guia"; }
+}
+$("btnGuia").onclick = pedirGuia;
+$("btnChave").onclick = () => { const c=$("guiaChave"); c.style.display = c.style.display==="block"?"none":"block"; };
+$("btnChaveSalva").onclick = () => { const v=$("chaveIA").value.trim(); if(!v) return;
+  try { localStorage.setItem("gd_ia_key", v); } catch(e){} $("chaveIA").value=""; $("guiaChave").style.display="none"; mostra("Chave salva neste aparelho."); };
+$("btnChaveRemove").onclick = () => { try { localStorage.removeItem("gd_ia_key"); } catch(e){} mostra("Chave removida."); };
+
+// ---------- avisos ----------
+let tBanner;
+function mostra(msg){
+  $("bannerTxt").textContent = msg;
+  $("banner").style.display = "flex";
+  clearTimeout(tBanner);
+  tBanner = setTimeout(()=>$("banner").style.display="none", 8000);
+}
+$("bannerFecha").onclick = () => $("banner").style.display="none";
+
+function atualizaStatusNotif(){
+  const s = $("statusNotif");
+  if (!("Notification" in window)) { s.textContent = "Este navegador não suporta notificações; só o aviso na tela será usado."; return; }
+  s.textContent = {
+    granted:"Alertas ativos. Para avisar com o app fechado, instale-o na tela inicial.",
+    denied:"Notificações bloqueadas no navegador. Libere nas configurações do site.",
+    default:"Alertas ainda não ativados."
+  }[Notification.permission];
+}
+async function ativarNotif(){
+  if ("Notification" in window) { try { await Notification.requestPermission(); } catch(e){} }
+  atualizaStatusNotif();
+  if (!("Notification" in window) || Notification.permission==="granted") mostra("Alertas ativados! Os avisos aparecem nos horários dos blocos.");
+  else mostra("Permissão não concedida: usarei apenas o aviso na tela.");
+}
+async function notificar(titulo, corpo){
+  if (!("Notification" in window) || Notification.permission!=="granted") return;
+  try {
+    const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg) await reg.showNotification(titulo, {body:corpo, icon:"icon-192.png", tag:corpo});
+    else new Notification(titulo, {body:corpo, icon:"icon-192.png"});
+  } catch(e){}
+}
+
+function verificaAlertas(){
+  if (dataLocal(new Date()) !== chave){ carregaDia(); render(); return; } // virou o dia
+  const agora = agoraMin();
+  let mudou = false;
+  tarefas.forEach(t=>{
+    const delta = agora - paraMin(t.hora);
+    if (delta>=0 && delta<=JANELA_ALERTA && !feitos[t.id] && !notificados[t.id]){
+      notificados[t.id] = true; mudou = true;
+      const msg = "⏰ "+t.hora+" — "+t.titulo+(t.dur?" ("+t.dur+")":"");
+      mostra(msg); notificar("Guia do Meu Dia", msg);
+    }
+  });
+  if (mudou) gravar("gd_notif_"+chave, notificados);
+  if (!editMode) render(); // não apaga o que está sendo digitado
+}
+
+// ---------- ações ----------
+function addBloco(){
+  const ti = $("nTitulo").value.trim();
+  if (!ti || !$("nHora").value) return;
+  tarefas.push({id:novoId(), hora:$("nHora").value, titulo:ti, dur:$("nDur").value.trim(), intencao:""});
+  $("nTitulo").value=""; $("nDur").value=""; salva(); render();
+}
+function zerarDia(){
+  if (!confirm("Zerar o dia e começar novo?")) return;
+  feitos={}; notificados={};
+  gravar("gd_notif_"+chave, notificados); salva(); render();
+  mostra("Novo dia iniciado! Deus te abençoe. 🙏");
+}
+function exportar(){
+  const dados = {versao:1, tarefas, plano, dias:{}};
+  try {
+    for (let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if (/^gd_(feitos|exame)_/.test(k)) dados.dias[k] = JSON.parse(localStorage.getItem(k));
+    }
+  } catch(e){}
+  const a = el("a", {href:URL.createObjectURL(new Blob([JSON.stringify(dados,null,2)],{type:"application/json"})), download:"guia-meu-dia-"+chave+".json"});
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function importar(arq){
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!Array.isArray(d.tarefas)) throw 0;
+      if (!confirm("Importar substituirá o cronograma e os registros atuais. Continuar?")) return;
+      tarefas = d.tarefas.map(t=>({id:String(t.id||novoId()), hora:String(t.hora||"00:00"), titulo:String(t.titulo||""), dur:String(t.dur||""), intencao:String(t.intencao||"")}));
+      Object.entries(d.dias||{}).forEach(([k,v])=>{ if(/^gd_(feitos|exame)_\d{4}-\d{2}-\d{2}$/.test(k)) gravar(k,v); });
+      if (d.plano && PLANOS[d.plano.plano]) { plano = {plano:d.plano.plano, prog:d.plano.prog||{}, feitoEm:d.plano.feitoEm||{}}; salvaPlano(); }
+      gravar("gd_tarefas_v1", tarefas); carregaDia(); render(); mostra("Dados importados.");
+    } catch(e){ mostra("Arquivo inválido."); }
+  };
+  r.readAsText(arq);
+}
+
+$("e1").oninput = $("e2").oninput = $("e3").oninput = salvaExame;
+$("btnNotif").onclick = ativarNotif;
+$("btnBloco").onclick = () => { const f=$("formAdd"); f.style.display = f.style.display==="block" ? "none" : "block"; };
+$("btnAdd").onclick = addBloco;
+$("btnEditar").onclick = () => { editMode=!editMode; $("btnEditar").textContent = editMode ? "✔ Concluir" : "✏️ Editar"; render(); };
+$("btnNovoDia").onclick = zerarDia;
+$("btnExportar").onclick = exportar;
+$("btnImportar").onclick = () => $("arqImportar").click();
+$("arqImportar").onchange = e => { if (e.target.files[0]) importar(e.target.files[0]); e.target.value=""; };
+document.addEventListener("visibilitychange", () => { if (!document.hidden) verificaAlertas(); });
+
+carregaDia();
+render();
+renderPlano();
+renderSequencia();
+renderGuia((lerJSON("gd_guia_v1",{}).ultima||{}).resp ? Object.assign({_data:lerJSON("gd_guia_v1",{}).ultima.data}, lerJSON("gd_guia_v1",{}).ultima.resp) : null);
+atualizaStatusNotif();
+setInterval(verificaAlertas, 15000);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>

@@ -22,14 +22,17 @@ import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
 import { homedir, tmpdir } from 'node:os'
-import { readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
+import { socialServer, rodarAgendador } from './instagram-publish.mjs'
+import { createStore as igStore } from './instagram.mjs'
+import { painel as marketingPainel } from './marketing.mjs'
 import { opsServer, operationInsight, findDashboard, backupDashboard, diagnostics, statusSummary } from './ops.mjs'
 import { PERSONA_PT, detectMode, setMode, getMode, modeTag, isConfirmation, confirmPending, notePending, noteAwaiting, consumeGrant } from './persona.mjs'
-import { log } from './home.mjs'
+import { log, DIRS } from './home.mjs'
 
 const PORT = Number(process.env.JARVIS_BRIDGE_PORT ?? 8787)
 
@@ -122,7 +125,7 @@ const MODEL = process.env.JARVIS_MODEL ?? 'claude-opus-5'
  * matters more than pace; drop back to 'low' when filming and every second of
  * dead air shows.
  */
-const EFFORT = process.env.JARVIS_EFFORT ?? 'high'
+const EFFORT = process.env.JARVIS_EFFORT ?? 'medium'
 
 /**
  * Both spellings of every renamed built-in are listed on purpose. The SDK
@@ -737,15 +740,19 @@ const handleRequest = async (req, res) => {
 
   // ---- Operação Vila Dia / dashboard (somente leitura, same-origin) -------
   if (req.method === 'GET' && req.url === '/jarvis/status') {
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(await statusSummary()))
   }
   if (req.method === 'GET' && req.url === '/jarvis/insight') {
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(operationInsight()))
   }
+  if (req.method === 'GET' && req.url === '/jarvis/marketing') {
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
+    return res.end(JSON.stringify(marketingPainel()))
+  }
   if (req.method === 'GET' && req.url === '/jarvis/diagnostics') {
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(await diagnostics()))
   }
   if (req.method === 'GET' && req.url === '/jarvis-widget.js') {
@@ -773,7 +780,7 @@ const handleRequest = async (req, res) => {
     // without one it falls back to the browser's own recogniser and voice, so a
     // student with nothing configured still has a working assistant.
     const eleven = Boolean(elevenKey())
-    res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify({ ok: true, tts: eleven, stt: eleven }))
   }
 
@@ -1010,7 +1017,7 @@ const handleRequest = async (req, res) => {
     // Silence, or a click. Nothing to transcribe, and calling out to the API
     // for it would only add latency to a non-answer.
     if (size < 1200) {
-      res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+      res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
       return res.end(JSON.stringify({ text: '' }))
     }
 
@@ -1044,7 +1051,7 @@ const handleRequest = async (req, res) => {
         return res.end(await upstream.text())
       }
       const data = await upstream.json()
-      res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+      res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
       return res.end(JSON.stringify({ text: (data.text ?? '').trim() }))
     } catch (err) {
       res.writeHead(502, cors)
@@ -1093,6 +1100,15 @@ const wss = new WebSocketServer({
 // authentication — anything else on the network can send whatever Origin it
 // likes — so the bridge must not be reachable from another machine at all.
 server.listen(PORT, '127.0.0.1')
+// Piloto automático do Instagram: DESLIGADO por padrão. Só liga com JARVIS_IG_AUTOPOST=1 (jarvis-secrets.cmd).
+if (process.env.JARVIS_IG_AUTOPOST === '1') {
+  const igSt = igStore()
+  const parar = () => existsSync(join(DIRS.config, 'PARAR-INSTAGRAM'))
+  log('instagram', 'piloto automático LIGADO: publica só rascunhos aprovados e já no horário')
+  const ciclo = () => rodarAgendador(igSt, { parar }).catch((e) => log('instagram', `autopost erro ${String(e.message).slice(0, 120)}`))
+  setTimeout(ciclo, 30_000)
+  setInterval(ciclo, 5 * 60 * 1000)
+}
 
 console.log(`[jarvis] bridge listening on ws://localhost:${PORT}`)
 log('startup', `bridge port=${PORT} model=${MODEL} writes=${ALLOW_WRITES} mode=${getMode()}`)
@@ -1307,6 +1323,8 @@ wss.on('connection', (socket) => {
         jarvis_ui: uiServer((op, args) => send({ type: 'ui', op, args })),
         // Operação Vila Dia: análise, dashboard, modos, diagnóstico e memória.
         jarvis_ops: opsServer(),
+        // Publicação no Instagram: fora da lista liberada de decideTool => exige confirmação por voz.
+        jarvis_social: socialServer(),
         // The user's own Chrome, over the extension's native-host socket. It
         // holds no per-connection state, but it is built here with the rest so
         // the write gate is read once, at the same point as everything else.
@@ -1343,6 +1361,11 @@ wss.on('connection', (socket) => {
       // Normally your own `/model` preference would decide, but that lives in
       // the settings files `settingSources: []` deliberately stops loading, so
       // without this line nothing in the project has a say at all.
+      // Só os servidores passados em mcpServers acima. Sem isto o Claude Code também carrega
+      // os conectores da conta claude.ai (Gmail, Drive, Microsoft 365, Zapier, Supabase…) e os
+      // plugins — acesso que um assistente de voz não deve ter por padrão. Conectar algum deles
+      // exige uma decisão consciente, não um efeito colateral do login.
+      strictMcpConfig: true,
       model: MODEL,
       effort: EFFORT,
       maxTurns: 24,

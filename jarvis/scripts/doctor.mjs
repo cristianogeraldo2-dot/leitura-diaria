@@ -44,7 +44,7 @@ ok('Launchers', 'execução real do .cmd', 'warn', 'só no Windows — rode STAR
 
 // Voz / wake word (estático: regex e idioma)
 const voice = rd('src/lib/voice.ts')
-const m = /const WAKE =\s*\/(.+)\/i\n/.exec(voice)
+const m = /const WAKE =\s*\/(.+)\/i\r?\n/.exec(voice) // aceita CRLF (arquivos no Windows)
 const WAKE = m ? new RegExp(m[1], 'i') : null
 ok('Voz', 'regex da wake word encontrada', Boolean(WAKE))
 if (WAKE) {
@@ -83,6 +83,7 @@ ok('Segurança', '.gitignore protege memory/logs/knowledge/backups/segredos', ['
 const tracked = spawnSync('git', ['ls-files', '--', 'logs', 'memory', 'backups', 'config', 'knowledge'], { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').filter((f) => f && !/\.gitkeep$|operacao\.(exemplo|template)\.json$|DADOS-NECESSARIOS\.md$/.test(f))
 ok('Segurança', 'nenhum dado/segredo versionado', tracked.length === 0, tracked.join(', '))
 ok('Segurança', 'bridge só em 127.0.0.1', /listen\(PORT, '127\.0\.0\.1'\)/.test(rd('bridge/server.mjs')))
+ok('Segurança', 'bridge isolada dos conectores da conta (Gmail, Drive, M365…)', /strictMcpConfig:\s*true/.test(rd('bridge/server.mjs')))
 ok('Segurança', 'camada de confirmação ativa', /consumeGrant/.test(rd('bridge/server.mjs')))
 
 const w = Math.max(...rows.map((r) => r[2].length))

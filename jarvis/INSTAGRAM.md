@@ -1,0 +1,55 @@
+# Módulo Instagram do JARVIS
+
+## Etapa 1 (pronta): criar, guardar e ranquear — sem acesso à conta
+- `modo conteúdo` / `modo instagram`: o JARVIS passa a criar Reels, posts, carrosséis e stories.
+- Perfil de marca (`instagram_perfil`): @, nicho, público, tom, metas, temas, o que evitar. Ele pergunta UMA coisa por vez.
+- Rascunhos (`instagram_rascunho_salvar`, `instagram_rascunhos`, `instagram_aprovar`) em `knowledge/instagram/` (fora do Git).
+  Aprovar **não publica**.
+- Melhores posts: exporte o Insights (CSV/XLSX), salve em `knowledge/instagram/entrada`, e peça
+  "Jarvis, importe as métricas do arquivo X" / "quais foram meus melhores posts".
+  Taxa = (curtidas + 2×comentários + 3×salvamentos + 3×compartilhamentos) ÷ alcance.
+- Sem dado, ele diz "Não tenho esse dado disponível".
+
+## Etapa 2 (código pronto; falta a credencial da Cris): publicar pela API oficial
+Pré-requisitos que dependem da Cris:
+1. Conta do Instagram **Profissional** (Criador ou Comercial) ligada a uma **Página do Facebook**.
+2. App no Meta for Developers com permissão de publicação (`instagram_content_publish`).
+3. Token de acesso guardado **só** em `jarvis-secrets.cmd` (nunca no chat, nunca no Git).
+Limites técnicos: a API publica a partir de **URL pública** de imagem/vídeo (não aceita arquivo local),
+e Reels exigem vídeo já pronto. Toda publicação passa pela confirmação por voz ("Confirma, Cris?").
+Não será usada automação de navegador no site do Instagram (viola os termos e pode bloquear a conta).
+
+### Passo a passo (a interface da Meta muda; confira em developers.facebook.com)
+1. Conta Profissional ligada a uma Página do Facebook (feito).
+2. developers.facebook.com → **Meus apps → Criar app** (tipo Empresa) → adicione o produto de Instagram.
+3. **Explorador da Graph API**: escolha o app, **Gerar token de acesso de usuário** com as permissões
+   `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement`.
+   (Em modo de desenvolvimento, sendo administradora do app, não precisa de revisão da Meta para a própria conta.)
+4. No PowerShell (o token fica só nesta janela): `$env:IG_ACCESS_TOKEN = Read-Host "Cole o token"` e `npm.cmd run ig:descobrir`.
+   Ele mostra o **IG_USER_ID** da sua conta.
+5. Copie `jarvis-secrets.example.cmd` para `jarvis-secrets.cmd` e preencha `IG_ACCESS_TOKEN` e `IG_USER_ID`. Reinicie.
+6. Peça "Jarvis, verifique a conexão do Instagram" (só leitura).
+Tokens de usuário expiram (curtos em minutos/horas; os de longa duração em ~60 dias): será preciso renová-los.
+Publicar: só rascunho **aprovado** com `midiaUrls` https públicas; sempre com "Confirma, Cris?".
+
+## Diretor de marketing (@cristianogeraldo.ofc)
+
+O JARVIS age como diretor de marketing da marca pessoal: **analisa → estrategiza → cria → revisa → (você confirma) publica → mede → aprende**. Tudo usa o que já existe (perfil, rascunhos, métricas, publicação oficial).
+
+**Voz** (modo conteúdo entra sozinho): "qual é a estratégia de hoje?", "crie o Reel de hoje", "produza o vídeo", "revise o conteúdo", "publique o Reel", "analise o Instagram", "qual conteúdo performou melhor?", "monte a estratégia da próxima semana".
+
+**Ferramentas novas:** `marketing_painel`, `marketing_revisar`, `marketing_campanha_definir`, `marketing_aprendizado_registrar`, `video_ffmpeg`, `video_produzir`, `video_validar`. Painel na tela: **DIRETOR DE MARKETING** (`/jarvis/marketing`).
+
+**VIDEO_FACTORY** (precisa do FFmpeg no PC; não é instalado sozinho): gera MP4 9:16 H.264/AAC com texto na tela e CTA, capa PNG e legendas SRT em `knowledge/instagram/videos/AAAA-MM-DD/campanha/`. Só é dado como gerado se o arquivo existir e passar na validação (ffprobe). Imagens e trilha só de `knowledge/instagram/entrada`.
+
+**Segurança:** só publica em `@cristianogeraldo.ofc` (confere o @ do token antes de qualquer envio; troque com `IG_EXPECTED_USERNAME`). Publicar exige rascunho aprovado, URL https pública da mídia e o seu "confirmo". `DIRECTOR_AUTONOMOUS` **não** publica sozinho: cai em revisão. Horários do dia em `config/marketing-agenda.json` (`[{"hora":"07:00","tarefa":"..."}]`).
+
+## Piloto automático (opcional, desligado por padrão)
+
+Liga com `set "JARVIS_IG_AUTOPOST=1"` no `jarvis-secrets.cmd` e reinicie. A cada 5 minutos o JARVIS publica **somente**:
+- rascunhos que você **aprovou** (`aprovo todos` / `instagram_aprovar_lote`),
+- com `agendadoPara` já vencido (até 36 h atrás; sem fuso = horário de Brasília),
+- com mídia em URL **https pública**,
+- e com a conta conferida como `@cristianogeraldo.ofc` em cada envio.
+
+Limites: máx. `JARVIS_IG_AUTOPOST_MAX_DIA` por dia (1 a 5, padrão 3); 2 falhas e o item sai da fila; nunca simula; tudo vai para o log (sem token). **Para parar na hora:** crie o arquivo vazio `config\PARAR-INSTAGRAM` ou ponha `JARVIS_IG_AUTOPOST=0` e reinicie. Precisa de `IG_ACCESS_TOKEN` e `IG_USER_ID` válidos.
