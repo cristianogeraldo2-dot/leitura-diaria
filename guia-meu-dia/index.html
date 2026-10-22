@@ -49,6 +49,11 @@
   .del { background:transparent; border:none; color:#d4786a; font-size:20px; cursor:pointer; width:44px; height:44px; flex-shrink:0; }
   .vazio { color:#c9bfa8; font-size:13px; padding:10px 2px; }
   #formAdd { display:none; }
+  .plano select { background:#1f1e1b; border:1px solid #4a463d; border-radius:8px; color:#f7f4ef; font-size:13px; padding:6px 8px; max-width:55%; }
+  .plano .prox { font-size:16px; font-weight:700; margin:8px 0 6px; }
+  .barra { height:8px; background:#1f1e1b; border-radius:6px; overflow:hidden; }
+  .barra > div { height:100%; background:#5a7d4f; width:0; transition:width .3s; }
+  .plano .meta { font-size:11px; color:#c9bfa8; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -70,6 +75,16 @@
   <div class="card">
     <div class="rotulo">LIVRO DO DIA</div>
     <div class="livro" id="livro"></div>
+  </div>
+
+  <div class="card plano">
+    <div class="rotulo"><span>LEITURA DA BÍBLIA</span>
+      <select id="planoSel" aria-label="Plano de leitura"></select></div>
+    <div class="prox" id="planoProx"></div>
+    <div class="barra"><div id="planoBarra"></div></div>
+    <div class="meta" id="planoMeta"></div>
+    <div class="botoes"><button class="acao" id="btnLido">✓ Li hoje</button>
+      <button class="sec" id="btnPlanoZera">Reiniciar plano</button></div>
   </div>
 
   <div class="rotulo" style="margin:4px 0 8px;">CRONOGRAMA</div>
@@ -187,6 +202,13 @@ const PADRAO = [
 ];
 const MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 const DIAS=["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+const PLANOS = {
+  proverbios:{nome:"Provérbios", livro:"Provérbios", caps:31},
+  joao:{nome:"Evangelho de João", livro:"João", caps:21},
+  mateus:{nome:"Evangelho de Mateus", livro:"Mateus", caps:28},
+  salmos:{nome:"Salmos", livro:"Salmos", caps:150},
+  atos:{nome:"Atos dos Apóstolos", livro:"Atos", caps:28},
+};
 const JANELA_ALERTA = 5; // minutos: avisa atrasado se o timer foi adiado
 const $ = id => document.getElementById(id);
 
@@ -223,6 +245,7 @@ function carregaDia(){
   const v = VERSOS[diaAno % VERSOS.length];
   $("verso").textContent = "“"+v[0]+"”"; $("versoRef").textContent = v[1];
   $("livro").textContent = "📖 "+LIVROS[diaAno % LIVROS.length];
+  if (typeof renderPlano==="function" && typeof plano!=="undefined") renderPlano();
 }
 function salvaExame(){ gravar("gd_exame_"+chave, {e1:$("e1").value, e2:$("e2").value, e3:$("e3").value}); }
 
@@ -289,6 +312,35 @@ function render(){
   $("progresso").textContent = (total ? Math.round(done/total*100) : 0)+"% feito";
 }
 
+// ---------- plano de leitura ----------
+let plano = lerJSON("gd_plano_v1", null) || {};
+plano = {plano: PLANOS[plano.plano] ? plano.plano : "proverbios", prog: plano.prog||{}, feitoEm: plano.feitoEm||{}};
+function salvaPlano(){ gravar("gd_plano_v1", plano); }
+function renderPlano(){
+  const sel = $("planoSel");
+  if (!sel.options.length) Object.entries(PLANOS).forEach(([k,v])=>sel.appendChild(el("option",{value:k,text:v.nome})));
+  sel.value = plano.plano;
+  const pl = PLANOS[plano.plano], n = plano.prog[plano.plano]||0, jaHoje = plano.feitoEm[plano.plano]===chave;
+  const concluido = n >= pl.caps;
+  $("planoProx").textContent = concluido ? "Plano concluído 🎉" : (jaHoje ? "Hoje: " : "Próximo: ")+pl.livro+" "+(jaHoje ? n : n+1);
+  $("planoBarra").style.width = Math.round(n/pl.caps*100)+"%";
+  $("planoMeta").textContent = n+" de "+pl.caps+" capítulos lidos";
+  const b = $("btnLido");
+  b.textContent = jaHoje ? "↩ Desfazer leitura de hoje" : "✓ Li hoje";
+  b.disabled = concluido && !jaHoje;
+  b.style.opacity = b.disabled ? .5 : 1;
+}
+function marcaLido(){
+  const k = plano.plano, pl = PLANOS[k], n = plano.prog[k]||0;
+  if (plano.feitoEm[k]===chave){ plano.prog[k] = Math.max(0,n-1); delete plano.feitoEm[k]; }
+  else if (n < pl.caps){ plano.prog[k] = n+1; plano.feitoEm[k] = chave; mostra("Leitura registrada: "+pl.livro+" "+(n+1)+" 🙏"); }
+  salvaPlano(); renderPlano();
+}
+$("planoSel").onchange = e => { plano.plano = e.target.value; salvaPlano(); renderPlano(); };
+$("btnLido").onclick = marcaLido;
+$("btnPlanoZera").onclick = () => { if(!confirm("Reiniciar o plano “"+PLANOS[plano.plano].nome+"” do início?")) return;
+  plano.prog[plano.plano]=0; delete plano.feitoEm[plano.plano]; salvaPlano(); renderPlano(); };
+
 // ---------- avisos ----------
 let tBanner;
 function mostra(msg){
@@ -353,7 +405,7 @@ function zerarDia(){
   mostra("Novo dia iniciado! Deus te abençoe. 🙏");
 }
 function exportar(){
-  const dados = {versao:1, tarefas, dias:{}};
+  const dados = {versao:1, tarefas, plano, dias:{}};
   try {
     for (let i=0;i<localStorage.length;i++){
       const k = localStorage.key(i);
@@ -373,6 +425,7 @@ function importar(arq){
       if (!confirm("Importar substituirá o cronograma e os registros atuais. Continuar?")) return;
       tarefas = d.tarefas.map(t=>({id:String(t.id||novoId()), hora:String(t.hora||"00:00"), titulo:String(t.titulo||""), dur:String(t.dur||""), intencao:String(t.intencao||"")}));
       Object.entries(d.dias||{}).forEach(([k,v])=>{ if(/^gd_(feitos|exame)_\d{4}-\d{2}-\d{2}$/.test(k)) gravar(k,v); });
+      if (d.plano && PLANOS[d.plano.plano]) { plano = {plano:d.plano.plano, prog:d.plano.prog||{}, feitoEm:d.plano.feitoEm||{}}; salvaPlano(); }
       gravar("gd_tarefas_v1", tarefas); carregaDia(); render(); mostra("Dados importados.");
     } catch(e){ mostra("Arquivo inválido."); }
   };
@@ -392,6 +445,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) veri
 
 carregaDia();
 render();
+renderPlano();
 atualizaStatusNotif();
 setInterval(verificaAlertas, 15000);
 

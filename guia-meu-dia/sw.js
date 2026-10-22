@@ -1,4 +1,4 @@
-const CACHE = "guia-meu-dia-v1";
+const CACHE = "guia-meu-dia-v2";
 const ARQUIVOS = ["./", "./index.html", "./manifest.json", "./icon.svg", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
