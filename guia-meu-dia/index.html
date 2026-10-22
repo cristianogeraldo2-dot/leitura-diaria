@@ -49,6 +49,9 @@
   .del { background:transparent; border:none; color:#d4786a; font-size:20px; cursor:pointer; width:44px; height:44px; flex-shrink:0; }
   .vazio { color:#c9bfa8; font-size:13px; padding:10px 2px; }
   #formAdd { display:none; }
+  .anel { text-align:center; padding:10px; }
+  .anel svg { width:100%; max-width:260px; height:auto; }
+  .anel .legenda { font-size:11px; color:#c9bfa8; margin-top:4px; }
   .plano select { background:#1f1e1b; border:1px solid #4a463d; border-radius:8px; color:#f7f4ef; font-size:13px; padding:6px 8px; max-width:55%; }
   .plano .prox { font-size:16px; font-weight:700; margin:8px 0 6px; }
   .barra { height:8px; background:#1f1e1b; border-radius:6px; overflow:hidden; }
@@ -64,6 +67,11 @@
       <h1 id="dataHoje"></h1>
     </div>
     <div class="prog" id="progresso" aria-live="polite">0% feito</div>
+  </div>
+
+  <div class="card anel">
+    <svg id="anel" viewBox="0 0 200 200" role="img" aria-label="Anel do dia"></svg>
+    <div class="legenda"><span style="color:#5a7d4f">⬤</span> feito &nbsp; <span style="color:#e8c96a">⬤</span> agora/próximo &nbsp; <span style="color:#6a665b">⬤</span> pendente</div>
   </div>
 
   <div class="card">
@@ -310,6 +318,71 @@ function render(){
   const total = tarefas.length;
   const done = tarefas.filter(t=>feitos[t.id]).length;
   $("progresso").textContent = (total ? Math.round(done/total*100) : 0)+"% feito";
+  renderAnel(prox);
+}
+
+// ---------- anel do dia ----------
+function duracaoMin(d){
+  const t = String(d||"").toLowerCase();
+  const h = t.match(/(\d+(?:[.,]\d+)?)\s*h/), m = t.match(/(\d+)\s*min/);
+  const total = (h ? parseFloat(h[1].replace(",","."))*60 : 0) + (m ? parseInt(m[1]) : 0);
+  return total > 0 ? Math.round(total) : 30;
+}
+function svgEl(tag, attrs){
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k, v);
+  return e;
+}
+function renderAnel(prox){
+  const svg = $("anel"); svg.replaceChildren();
+  const C = 100, R = 78;
+  if (!tarefas.length){ return; }
+  const blocos = tarefas.map(t=>({t, ini:paraMin(t.hora), dur:duracaoMin(t.dur)}));
+  // janela do dia: do primeiro início ao último fim (limitada a 24h)
+  let ini = Math.floor(Math.min(...blocos.map(b=>b.ini))/60)*60;
+  let fim = Math.min(ini+1440, Math.ceil(Math.max(...blocos.map(b=>b.ini+b.dur))/60)*60);
+  if (fim - ini < 360) fim = ini + 360;
+  const span = fim - ini;
+  const ang = min => (Math.max(0, Math.min(span, min-ini)) / span) * 360;
+  const pt = (a, r) => { const rad = (a-90)*Math.PI/180; return [C + r*Math.cos(rad), C + r*Math.sin(rad)]; };
+  const arco = (a1, a2) => {
+    const [x1,y1] = pt(a1,R), [x2,y2] = pt(a2,R);
+    return "M"+x1.toFixed(2)+" "+y1.toFixed(2)+" A"+R+" "+R+" 0 "+((a2-a1)>180?1:0)+" 1 "+x2.toFixed(2)+" "+y2.toFixed(2);
+  };
+  svg.appendChild(svgEl("circle",{cx:C,cy:C,r:R,fill:"none",stroke:"#33312c","stroke-width":16}));
+  blocos.forEach(b=>{
+    const a1 = ang(b.ini)+0.8, a2 = ang(b.ini+b.dur)-0.8;
+    if (a2 - a1 < 0.5) return;
+    const feito = !!feitos[b.t.id];
+    const ativa = !feito && b.ini === prox;
+    const cor = feito ? "#5a7d4f" : ativa ? "#e8c96a" : "#6a665b";
+    const caminho = svgEl("path",{d:arco(a1, Math.min(a2, 359.9)),fill:"none",stroke:cor,"stroke-width":16,"stroke-linecap":"butt"});
+    const tt = svgEl("title"); tt.textContent = b.t.hora+" — "+b.t.titulo+" ("+b.t.dur+")";
+    caminho.appendChild(tt); svg.appendChild(caminho);
+  });
+  // marcas de hora
+  for (let m = ini; m <= fim && (m-ini)/60 <= 24; m += 360){
+    if (m === fim && span === 1440) break;
+    const a = ang(m), [x1,y1] = pt(a,R-12), [x2,y2] = pt(a,R-18), [tx,ty] = pt(a,R-27);
+    svg.appendChild(svgEl("line",{x1,y1,x2,y2,stroke:"#8a8472","stroke-width":1}));
+    const tx_ = svgEl("text",{x:tx,y:ty+3,"text-anchor":"middle","font-size":8,fill:"#8a8472"});
+    tx_.textContent = String(Math.floor(m/60)%24).padStart(2,"0")+"h"; svg.appendChild(tx_);
+  }
+  // ponteiro do agora
+  const agora = agoraMin();
+  if (agora >= ini && agora <= fim){
+    const a = ang(agora), [x1,y1] = pt(a,R-12), [x2,y2] = pt(a,R+12);
+    svg.appendChild(svgEl("line",{x1,y1,x2,y2,stroke:"#f7f4ef","stroke-width":3,"stroke-linecap":"round"}));
+  }
+  // centro
+  const total = tarefas.length, done = tarefas.filter(t=>feitos[t.id]).length;
+  const pc = svgEl("text",{x:C,y:C-2,"text-anchor":"middle","font-size":26,"font-weight":700,fill:"#e8c96a"});
+  pc.textContent = Math.round(done/total*100)+"%"; svg.appendChild(pc);
+  const proxBloco = blocos.find(b=>!feitos[b.t.id] && b.ini === prox);
+  const sub = svgEl("text",{x:C,y:C+16,"text-anchor":"middle","font-size":9,fill:"#c9bfa8"});
+  const txt = proxBloco ? proxBloco.t.hora+" "+proxBloco.t.titulo : (done===total ? "Dia completo 🙏" : "Sem próximo bloco");
+  sub.textContent = txt.length > 24 ? txt.slice(0,23)+"…" : txt; svg.appendChild(sub);
+  svg.setAttribute("aria-label","Anel do dia: "+done+" de "+total+" blocos feitos. "+txt);
 }
 
 // ---------- plano de leitura ----------
