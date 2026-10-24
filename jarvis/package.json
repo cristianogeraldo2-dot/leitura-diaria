@@ -18,6 +18,8 @@
     "bridge:writes": "JARVIS_ALLOW_WRITES=1 node bridge/server.mjs",
     "setup": "node scripts/setup.mjs",
     "ig:importar": "node scripts/ig-rascunhos-importar.mjs",
+    "scan:segredos": "node scripts/scan-secrets.mjs",
+    "midia": "node scripts/midia.mjs",
     "test": "node scripts/selftest.mjs",
     "test:live": "node scripts/selftest.mjs --live",
     "setup:mcp": "node scripts/setup-mcp.mjs",

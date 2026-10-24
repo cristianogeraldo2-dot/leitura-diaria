@@ -53,3 +53,7 @@ Liga com `set "JARVIS_IG_AUTOPOST=1"` no `jarvis-secrets.cmd` e reinicie. A cada
 - e com a conta conferida como `@cristianogeraldo.ofc` em cada envio.
 
 Limites: máx. `JARVIS_IG_AUTOPOST_MAX_DIA` por dia (1 a 5, padrão 3); 2 falhas e o item sai da fila; nunca simula; tudo vai para o log (sem token). **Para parar na hora:** crie o arquivo vazio `config\PARAR-INSTAGRAM` ou ponha `JARVIS_IG_AUTOPOST=0` e reinicie. Precisa de `IG_ACCESS_TOKEN` e `IG_USER_ID` válidos.
+
+## Mídia (URL https para a Meta)
+
+A hospedagem das imagens e vídeos (Supabase Storage), a conversão PNG para JPEG e as regras de segurança estão em `MIDIA-SUPABASE.md`. Essa etapa **não publica** nada.

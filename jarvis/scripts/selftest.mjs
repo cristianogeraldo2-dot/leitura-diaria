@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Bateria de testes do JARVIS. Uso: npm test   (offline)   |   npm run test:live  (inclui Claude Code real)
 import { spawn } from 'node:child_process'
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -225,6 +226,104 @@ if (mk_ff.ok && VF.acharFonte()) {
   t('VIDEO_FACTORY só lê imagens da pasta de entrada', mk_out.ok === false && /Por segurança|não encontrado/i.test(mk_out.motivo ?? ''))
 } else console.log('  ⏭  VIDEO_FACTORY ao vivo — FFmpeg/fonte não encontrados neste computador')
 rmSync(mkTmp, { recursive: true, force: true })
+
+// ---- unidade: mídia / Supabase Storage (SIMULADO: nenhum upload real, nenhuma chamada à Meta) ----
+console.log('\n[mídia / Supabase Storage — simulado]')
+const MP = await import('../bridge/media-prep.mjs')
+const MS = await import('../bridge/media-storage.mjs')
+const SC = await import('../scripts/scan-secrets.mjs')
+const HM = await import('../bridge/home.mjs')
+const tmpAntes = readdirSync(tmpdir()).filter((n) => n.startsWith(MP.PREFIXO_TMP)).length
+const mdDir = mkdtempSync(join(tmpdir(), 'md-test-'))
+const mdFf = (await VF.detectarFfmpeg()).ok
+const CHAVE_SB = 'sb_secret_' + 'Z'.repeat(32) // chave FALSA montada em tempo de execução
+const CHAVE_JWT = 'eyJ' + 'a'.repeat(20) + '.' + 'b'.repeat(20) + '.' + 'c'.repeat(20) // JWT FALSO
+const envOk = { SUPABASE_URL: 'https://projeto.supabase.co', SUPABASE_SECRET_KEY: CHAVE_SB }
+const mkFetch = (h) => { const calls = []; const f = async (url, opt = {}) => { calls.push({ url: String(url), method: opt.method ?? 'GET', headers: opt.headers ?? {}, body: opt.body }); return h(String(url), opt) }; f.calls = calls; return f }
+const resp = (status, body = '') => ({ ok: status < 400, status, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)), json: async () => (typeof body === 'string' ? JSON.parse(body || '{}') : body), headers: { get: () => null } })
+const jpegFalso = join(mdDir, 'ok.jpg'); writeFileSync(jpegFalso, Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(2000, 1)]))
+const prepFalsa = { ok: true, arquivo: jpegFalso, mime: 'image/jpeg', tamanho: 2004 }
+
+if (mdFf) {
+  const png1 = join(mdDir, 'arte1.png'), png2 = join(mdDir, 'arte2.png')
+  for (const p of [png1, png2]) execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x102a43:s=1080x1350', '-frames:v', '1', p])
+  const c = await MP.converterParaJpeg(png1)
+  t('1. conversão PNG→JPEG válida (JPEG real, original preservado)', c.ok && MP.detectarTipo(c.saida) === 'image/jpeg' && existsSync(png1) && c.largura === 1080 && c.altura === 1350)
+  t('1b. não sobrescreve JPEG existente', (await MP.converterParaJpeg(png1)).codigo === 'SAIDA_EXISTE')
+  const p2 = await MS.prepararMidia(png2, { formato: 'feed' })
+  t('1c. prepararMidia converte e valida (4:5, JPEG ≤ 8 MB)', p2.ok && p2.convertido === true && p2.mime === 'image/jpeg' && existsSync(png2))
+  const larga = join(mdDir, 'larga.png'); execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x102a43:s=2000x400', '-frames:v', '1', larga])
+  const p2b = await MS.prepararMidia(png2, { formato: 'feed' })
+  t('1c2. preparar de novo reaproveita o JPEG válido (não falha nem sobrescreve)', p2b.ok && p2b.reaproveitado === true && p2b.arquivo === p2.arquivo)
+  t('1d. proporção fora de 4:5–1,91:1 é recusada para feed', (await MS.prepararMidia(larga, { formato: 'feed' })).codigo === 'IMAGEM_INVALIDA')
+  const png3 = join(mdDir, 'arte3.png'); execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x102a43:s=1080x1350', '-frames:v', '1', png3])
+  t('4b. limite de tamanho do JPEG gerado é respeitado', (await MP.converterParaJpeg(png3, { limites: { imagemBytes: 200, videoBytes: 200 }, saida: join(mdDir, 'pequeno.jpg') })).codigo === 'JPEG_INVALIDO')
+  const vid = await VF.produzirVideo({ titulo: 'md teste', cenas: [{ texto: 'a', duracao: 2 }, { texto: 'b', duracao: 2 }], base: join(mdDir, 'v') })
+  const pv = await MS.prepararMidia(vid.arquivos.video)
+  t('MP4 do VIDEO_FACTORY é validado (H.264, 9:16, áudio) antes de qualquer envio', pv.ok && pv.tipo === 'video' && pv.mime === 'video/mp4')
+  const mp4Falso = join(mdDir, 'falso.mp4'); writeFileSync(mp4Falso, Buffer.concat([Buffer.alloc(4), Buffer.from('ftypisom'), Buffer.alloc(100)]))
+  t('MP4 que só parece MP4 (sem fluxo de vídeo legível) NÃO é aceito', (await MS.prepararMidia(mp4Falso)).ok === false)
+} else console.log('  ⏭  testes de conversão/validação de mídia — FFmpeg não encontrado neste computador')
+
+const lixo = join(mdDir, 'lixo.jpg'); writeFileSync(lixo, Buffer.from('isto não é uma imagem'))
+t('2. arquivo inválido (conteúdo falso com extensão .jpg) é rejeitado', MP.validarArquivo(lixo).ok === false && (await MS.prepararMidia(lixo)).ok === false)
+const txt = join(mdDir, 'nota.txt'); writeFileSync(txt, 'texto')
+const pdf = join(mdDir, 'doc.pdf'); writeFileSync(pdf, '%PDF-1.4 conteudo')
+const pngComoMp4 = join(mdDir, 'engano.mp4'); writeFileSync(pngComoMp4, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(50)]))
+t('3. tipos incompatíveis rejeitados (txt, pdf, PNG disfarçado de MP4)', [txt, pdf, pngComoMp4].every((f) => MP.validarArquivo(f).ok === false))
+t('4. limite de tamanho respeitado na validação', MP.validarArquivo(jpegFalso, { limites: { imagemBytes: 100, videoBytes: 100 } }).ok === false)
+
+// credenciais
+const semCred = await MS.enviarMidia(prepFalsa, { env: {}, fetchFn: mkFetch(() => resp(200)) })
+t('5. sem credenciais: erro claro com só os NOMES das variáveis', semCred.codigo === 'SEM_CREDENCIAIS' && semCred.faltando.includes('SUPABASE_SECRET_KEY') && !JSON.stringify(semCred).includes('sb_'))
+const f401 = mkFetch(() => resp(401, `chave inválida ${CHAVE_SB} e Bearer ${CHAVE_JWT}`))
+const r401 = await MS.enviarMidia(prepFalsa, { env: envOk, fetchFn: f401 })
+t('5b. 401 tratado e a mensagem NÃO revela a chave', r401.codigo === 'NAO_AUTORIZADO' && !JSON.stringify(r401).includes(CHAVE_SB) && !JSON.stringify(r401).includes(CHAVE_JWT))
+// falha de upload
+const r500 = await MS.enviarMidia(prepFalsa, { env: envOk, fetchFn: mkFetch(() => resp(500, 'erro interno')) })
+const rRede = await MS.enviarMidia(prepFalsa, { env: envOk, fetchFn: async () => { throw new Error(`conexão caiu com ${CHAVE_SB}`) } })
+t('6. falha de upload tratada (HTTP 500 e queda de rede), sem vazar a chave', r500.codigo === 'UPLOAD_FALHOU' && rRede.codigo === 'REDE' && !JSON.stringify([r500, rRede]).includes(CHAVE_SB))
+// sucesso simulado + URL
+const fOk = mkFetch((u) => (u.includes('/object/sign/') ? resp(200, { signedURL: u.replace('https://projeto.supabase.co/storage/v1', '') + '?token=TOKENFALSOABC123' }) : resp(200, { Key: 'x' })))
+const rOk = await MS.enviarMidia(prepFalsa, { env: envOk, fetchFn: fOk })
+const cfgT = MS.configStorage(envOk)
+t('7. envio simulado: URL assinada com validade e SEM credenciais embutidas', rOk.ok && rOk.acesso === 'assinada' && MS.validarUrlMidia(rOk.url, cfgT).ok && !rOk.url.includes(CHAVE_SB) && !!rOk.expiraEm)
+const U = 'https://projeto.supabase.co/storage/v1/object/'
+t('7b. validação de URL recusa http, usuário/senha, apikey, outro host e caminho estranho', [
+  'http://projeto.supabase.co/storage/v1/object/sign/b/a.jpg?token=x',
+  'https://usr:pw@projeto.supabase.co/storage/v1/object/sign/b/a.jpg?token=x',
+  `${U}sign/b/a.jpg?token=x&apikey=y`, `${U}public/b/a.jpg?token=x`,
+  'https://outro.exemplo.com/storage/v1/object/sign/b/a.jpg?token=x', 'https://projeto.supabase.co/rest/v1/tabela',
+].every((u) => !MS.validarUrlMidia(u, cfgT).ok) && MS.validarUrlMidia(`${U}public/b/a.jpg`, cfgT).ok)
+t('7c. URL assinada é mascarada para exibição', !MS.mascararUrl(`${U}sign/b/a.jpg?token=SEGREDO123`).includes('SEGREDO123'))
+const upCall = fOk.calls.find((c) => c.method === 'POST' && !c.url.includes('/sign/'))
+t('7d. objeto com nome imprevisível (uuid), não o nome do arquivo, e cabeçalho correto para chave sb_', /\/jarvis-midia\/\d{4}-\d{2}\/[0-9a-f-]{36}\.jpg$/.test(upCall.url) && !upCall.url.includes('ok.jpg') && !!upCall.headers.apikey && !upCall.headers.Authorization)
+const fJwt = mkFetch((u) => (u.includes('/object/sign/') ? resp(200, { signedURL: '/object/sign/jarvis-midia/x.jpg?token=T' }) : resp(200)))
+await MS.enviarMidia(prepFalsa, { env: { ...envOk, SUPABASE_SECRET_KEY: CHAVE_JWT }, fetchFn: fJwt })
+t('7e. chave em formato JWT (legado) usa apikey + Authorization', !!fJwt.calls[0].headers.Authorization && !!fJwt.calls[0].headers.apikey)
+t('7f. config usa padrões seguros: bucket privado, URL temporária, validade limitada', cfgT.acesso === 'assinada' && cfgT.ttlHoras === 24 && MS.configStorage({ ...envOk, SUPABASE_MEDIA_TTL_HORAS: '9999' }).ttlHoras === 168 && !MS.configStorage({ SUPABASE_URL: 'http://x.supabase.co', SUPABASE_SECRET_KEY: 'k' }).url)
+// nenhuma publicação
+const todas = [...f401.calls, ...fOk.calls, ...fJwt.calls]
+const fonteMidia = readFileSync(new URL('../bridge/media-storage.mjs', import.meta.url), 'utf8') + readFileSync(new URL('../bridge/media-prep.mjs', import.meta.url), 'utf8')
+t('8. nenhuma publicação real: nenhuma chamada à Meta e os módulos de mídia não importam o publicador', todas.every((c) => !/facebook\.com|instagram\.com/.test(c.url)) && !/instagram-publish|graph\.facebook/.test(fonteMidia))
+// segredos
+const achados = (() => { try { return SC.varrerRepositorio() } catch { return null } })()
+t('9. nenhum segredo nos arquivos versionados', achados === null || achados.length === 0)
+t('9b. o detector acha segredos (token Meta, chave Supabase, JWT) e a máscara de log os esconde', SC.detectarSegredos('EAA' + 'B'.repeat(30)).includes('token Meta') && SC.detectarSegredos(CHAVE_SB).includes('chave secreta Supabase') && SC.detectarSegredos(CHAVE_JWT).includes('JWT / chave de serviço') && [CHAVE_SB, CHAVE_JWT, 'EAA' + 'B'.repeat(30)].every((x) => !HM.redact(`erro ${x}`).includes(x)))
+const srcFront = readdirSync(new URL('../src/lib', import.meta.url)).map((n) => readFileSync(new URL(`../src/lib/${n}`, import.meta.url), 'utf8')).join('')
+t('9c. a chave de servidor não aparece no código do navegador (src/)', !/SUPABASE_SECRET|service_role|sb_secret/.test(srcFront))
+const exemploSec = readFileSync(new URL('../jarvis-secrets.example.cmd', import.meta.url), 'utf8')
+t('9d. o exemplo de segredos traz as variáveis do Supabase com valor VAZIO', /set "SUPABASE_SECRET_KEY="\r?\n/.test(exemploSec) && /set "SUPABASE_URL="\r?\n/.test(exemploSec))
+// limpeza
+const fLista = mkFetch((u) => (u.includes('/object/list/') ? resp(200, [{ name: '11111111-1111-1111-1111-111111111111.jpg', created_at: '2020-01-01T00:00:00Z' }, { name: '22222222-2222-2222-2222-222222222222.jpg', created_at: new Date().toISOString() }, { name: 'meu-arquivo-pessoal.jpg', created_at: '2020-01-01T00:00:00Z' }]) : resp(200)))
+const seco = await MS.limparAntigos({ dias: 2, env: envOk, fetchFn: fLista })
+t('10. limpeza remota: por padrão só LISTA, ignora objetos que não são nossos e os recentes', seco.dryRun === true && seco.encontrados >= 1 && seco.objetos.every((o) => /[0-9a-f-]{36}\.jpg$/.test(o) && !o.includes('2222') && !o.includes('pessoal')) && !fLista.calls.some((c) => c.method === 'DELETE'))
+const apaga = await MS.limparAntigos({ dias: 2, dryRun: false, env: envOk, fetchFn: fLista })
+t('10b. com apagar explícito, remove só os antigos nossos', apaga.ok && fLista.calls.filter((c) => c.method === 'DELETE').length === 1 && !String(fLista.calls.find((c) => c.method === 'DELETE').body).includes('pessoal'))
+t('10c. remover recusa caminhos que não são deste módulo', (await MS.removerMidia('jarvis-midia/../../etc/passwd', { env: envOk, fetchFn: mkFetch(() => resp(200)) })).codigo === 'CAMINHO_INVALIDO')
+rmSync(mdDir, { recursive: true, force: true })
+const tmpDepois = readdirSync(tmpdir()).filter((n) => n.startsWith(MP.PREFIXO_TMP)).length
+t('10d. diretórios temporários da conversão foram removidos', tmpDepois === tmpAntes)
 
 // ---- unidade: persona/modos/confirmação -------------------------------------
 console.log('\n[persona]')

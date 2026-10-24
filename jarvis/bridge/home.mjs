@@ -18,7 +18,7 @@ for (const d of Object.values(DIRS)) mkdirSync(d, { recursive: true })
 
 // Never let a secret reach a log line: API keys, bearer tokens, key=value pairs.
 const SECRET =
-  /(sk-[A-Za-z0-9_-]{8,}|xi-api-key["':=\s]+\S+|bearer\s+[A-Za-z0-9._-]{8,}|(?:api[_-]?key|token|secret|password|senha)["']?\s*[:=]\s*["']?[^\s"',]+)/gi
+  /(sk-[A-Za-z0-9_-]{8,}|EAA[A-Za-z0-9]{20,}|sb_secret_[A-Za-z0-9_-]{10,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{10,}|xi-api-key["':=\s]+\S+|bearer\s+[A-Za-z0-9._-]{8,}|(?:api[_-]?key|token|secret|password|senha)["']?\s*[:=]\s*["']?[^\s"',]+)/gi
 export const redact = (s) => String(s).replace(SECRET, '[REDACTED]')
 
 export function log(event, detail = '') {

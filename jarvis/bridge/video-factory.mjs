@@ -3,9 +3,10 @@ import { z } from 'zod'
 import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, copyFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve, relative, isAbsolute } from 'node:path'
+import { join, resolve, relative, isAbsolute, basename } from 'node:path'
 import { log, redact } from './home.mjs'
 import { createStore, IG_DIR } from './instagram.mjs'
+import { converterParaJpeg } from './media-prep.mjs'
 
 /**
  * VIDEO_FACTORY — monta MP4 vertical (1080x1920, H.264/AAC, 30 fps) para Reels a partir de cenas
@@ -196,6 +197,8 @@ export async function produzirImagens({ titulo, campanha = 'geral', slides, form
   const wd = mkdtempSync(join(tmpdir(), 'jarvis-img-'))
   const cores = ['0x0b1f2a', '0x14213d', '0x102a43', '0x1b263b']
   const arquivos = []
+  const arquivosJpeg = []
+  const avisosJpeg = []
   try {
     for (let i = 0; i < slides.length; i++) {
       const s = slides[i]
@@ -208,9 +211,13 @@ export async function produzirImagens({ titulo, campanha = 'geral', slides, form
       await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `color=c=${cores[i % cores.length]}:s=${W}x${ALT}`, '-vf', `${texto},${marca}`, '-frames:v', '1', 'img.png'], { cwd: wd })
       copyFileSync(join(wd, 'img.png'), saida)
       arquivos.push(saida)
+      // O Instagram só aceita JPEG: gera a cópia JPEG ao lado do PNG (o PNG original é mantido).
+      const j = await converterParaJpeg(saida)
+      if (j.ok) arquivosJpeg.push(j.saida)
+      else avisosJpeg.push(`${basename(saida)}: ${(j.problemas ?? [j.codigo]).join(' ')}`)
     }
     log('video', `imagens ${slug(titulo)} ${arquivos.length}`)
-    return { ok: arquivos.every((a) => existsSync(a)), pasta, arquivos, publicado: false }
+    return { ok: arquivos.every((a) => existsSync(a)), pasta, arquivos, arquivosJpeg, avisosJpeg, publicado: false }
   } catch (e) {
     return { ok: false, motivo: String(e.message ?? e).slice(0, 400) }
   } finally { rmSync(wd, { recursive: true, force: true }) }

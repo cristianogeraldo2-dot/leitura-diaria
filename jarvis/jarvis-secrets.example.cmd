@@ -25,3 +25,10 @@ rem  PILOTO AUTOMATICO (desligado por padrao). Com 1, publica sozinho SO o que v
 rem  Limite por dia: JARVIS_IG_AUTOPOST_MAX_DIA (1 a 5, padrao 3). Para parar na hora: crie o arquivo config\PARAR-INSTAGRAM.
 set "JARVIS_IG_AUTOPOST=0"
 set "JARVIS_IG_AUTOPOST_MAX_DIA=3"
+rem  MIDIA (Supabase Storage) - hospeda as midias para gerar a URL https que a Meta exige. Veja MIDIA-SUPABASE.md.
+rem  SUPABASE_SECRET_KEY e uma chave de SERVIDOR: so neste arquivo, nunca em navegador, chat ou Git.
+set "SUPABASE_URL="
+set "SUPABASE_SECRET_KEY="
+set "SUPABASE_BUCKET=jarvis-midia"
+set "SUPABASE_MEDIA_ACCESS=assinada"
+set "SUPABASE_MEDIA_TTL_HORAS=24"
