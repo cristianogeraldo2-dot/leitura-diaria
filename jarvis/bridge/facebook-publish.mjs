@@ -1,5 +1,5 @@
 import { redact } from './home.mjs'
-import { jaPublicado, registrar, LOG_PADRAO } from './publicacao-log.mjs'
+import { jaPublicado, ler, registrar, LOG_PADRAO } from './publicacao-log.mjs'
 
 /**
  * Publicação na Página do Facebook pela API OFICIAL (Graph API). Sem navegador, sem senha.
@@ -44,4 +44,35 @@ export async function publicarNaPagina(item, { fetchFn = fetch, logArquivo = LOG
     registrar({ canal: 'facebook', id: item.id, resultado: 'falhou', detalhe: e.message, arquivo: logArquivo })
     throw e
   }
+}
+
+// ---- Agendador do Facebook: roda junto do piloto do Instagram (JARVIS_IG_AUTOPOST=1). Sem FB_* não envia nada. ----
+const JANELA_MS = 36 * 3600 * 1000
+const MAX_FALHAS = 3
+const maxPorDia = () => Math.max(1, Math.min(5, Number(process.env.JARVIS_FB_AUTOPOST_MAX_DIA) || 3))
+const horario = (v) => { const t = String(v ?? '').trim(); return t ? Date.parse(/(z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}-03:00`) : NaN }
+
+/** Aprovados (ou já postados no Instagram) com horário vencido, ainda não publicados no Facebook, com até 3 falhas. */
+export function devidosFacebook(store, agora = new Date(), logArquivo = LOG_PADRAO) {
+  const falhas = (id) => ler(logArquivo).filter((x) => x.canal === 'facebook' && x.id === id && x.resultado === 'falhou').length
+  return [...store.listar('aprovado'), ...store.listar('publicado')].filter((x) => {
+    const t = horario(x.agendadoPara)
+    return x.tipo !== 'story' && Number.isFinite(t) && t <= agora.getTime() && agora.getTime() - t <= JANELA_MS && (x.midiaUrls ?? []).length && x.midiaUrls.every(https) && !jaPublicado('facebook', x.id, logArquivo) && falhas(x.id) < MAX_FALHAS
+  }).sort((a, b) => horario(a.agendadoPara) - horario(b.agendadoPara))
+}
+
+export async function rodarAgendadorFacebook(store, opts = {}) {
+  const agora = opts.agora ?? new Date()
+  const logArquivo = opts.logArquivo ?? LOG_PADRAO
+  if (!configurado()) return { ativo: false, motivo: 'sem credenciais do Facebook' }
+  if (opts.parar?.()) return { ativo: false, motivo: 'PARAR-INSTAGRAM encontrado' }
+  const hoje = agora.toISOString().slice(0, 10)
+  const feitos = ler(logArquivo).filter((x) => x.canal === 'facebook' && x.resultado === 'publicado' && String(x.em).slice(0, 10) === hoje).length
+  const vaga = maxPorDia() - feitos
+  if (vaga <= 0) return { ativo: true, publicados: [], motivo: 'limite diário atingido' }
+  const out = []
+  for (const x of devidosFacebook(store, agora, logArquivo).slice(0, vaga)) {
+    try { const r = await publicarNaPagina(x, { fetchFn: opts.fetchFn ?? fetch, logArquivo }); out.push({ id: x.id, ok: true, idMidia: r.idMidia ?? null }) } catch (e) { out.push({ id: x.id, ok: false, erro: String(e.message ?? e) }) }
+  }
+  return { ativo: true, publicados: out }
 }

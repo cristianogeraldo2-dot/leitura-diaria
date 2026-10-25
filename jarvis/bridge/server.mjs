@@ -28,6 +28,7 @@ import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
 import { socialServer, rodarAgendador } from './instagram-publish.mjs'
+import { rodarAgendadorFacebook } from './facebook-publish.mjs'
 import { createStore as igStore } from './instagram.mjs'
 import { painel as marketingPainel } from './marketing.mjs'
 import { opsServer, operationInsight, findDashboard, backupDashboard, diagnostics, statusSummary } from './ops.mjs'
@@ -1105,7 +1106,7 @@ if (process.env.JARVIS_IG_AUTOPOST === '1') {
   const igSt = igStore()
   const parar = () => existsSync(join(DIRS.config, 'PARAR-INSTAGRAM'))
   log('instagram', 'piloto automático LIGADO: publica só rascunhos aprovados e já no horário')
-  const ciclo = () => rodarAgendador(igSt, { parar }).catch((e) => log('instagram', `autopost erro ${String(e.message).slice(0, 120)}`))
+  const ciclo = () => rodarAgendador(igSt, { parar }).catch((e) => log('instagram', `autopost erro ${String(e.message).slice(0, 120)}`)).then(() => rodarAgendadorFacebook(igSt, { parar })).catch((e) => log('facebook', `autopost erro ${String(e.message).slice(0, 120)}`))
   setTimeout(ciclo, 30_000)
   setInterval(ciclo, 5 * 60 * 1000)
 }

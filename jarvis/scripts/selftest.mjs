@@ -422,6 +422,26 @@ console.log('\n[etapa 2 — facebook + log, tudo simulado]')
   rmSync(dir, { recursive: true, force: true })
 }
 
+{
+  const { mkdtempSync, rmSync } = await import('node:fs'); const { tmpdir } = await import('node:os'); const { join: jn } = await import('node:path')
+  const FB = await import('../bridge/facebook-publish.mjs'); const LG = await import('../bridge/publicacao-log.mjs')
+  const dir = mkdtempSync(jn(tmpdir(), 'jarvis-fb2-')); const arq = jn(dir, 'log.jsonl')
+  const mk = (id, extra = {}) => ({ id, status: 'aprovado', tipo: 'post', legenda: 'a', agendadoPara: '2026-10-18 12:00', midiaUrls: ['https://e.com/a.jpg'], ...extra })
+  const itens = [mk('a'), mk('b', { tipo: 'story' }), mk('c', { agendadoPara: '2099-01-01 12:00' }), mk('d', { status: 'rascunho' })]
+  const store = { listar: (s) => itens.filter((x) => x.status === s) }
+  const agora = new Date('2026-10-18T16:00:00Z')
+  delete process.env.FB_PAGE_TOKEN
+  t('agendador FB inativo sem credenciais', (await FB.rodarAgendadorFacebook(store, { agora, logArquivo: arq })).ativo === false)
+  t('FB só seleciona aprovado vencido e não-story', FB.devidosFacebook(store, agora, arq).map((x) => x.id).join() === 'a')
+  process.env.FB_PAGE_TOKEN = 'EA' + 'A' + 'y'.repeat(24); process.env.FB_PAGE_ID = '9'
+  const bad = async () => ({ ok: false, status: 500, json: async () => ({ error: { message: 'x' } }) })
+  for (let i = 0; i < 4; i++) await FB.rodarAgendadorFacebook(store, { agora, logArquivo: arq, fetchFn: bad })
+  t('FB para após 3 falhas', LG.ler(arq).filter((x) => x.resultado === 'falhou').length === 3)
+  t('FB respeita PARAR-INSTAGRAM', (await FB.rodarAgendadorFacebook(store, { agora, logArquivo: arq, parar: () => true })).ativo === false)
+  delete process.env.FB_PAGE_TOKEN; delete process.env.FB_PAGE_ID
+  rmSync(dir, { recursive: true, force: true })
+}
+
 if (LIVE && good.ok) {
   console.log('\n[claude code — ao vivo]')
   const ask = (text) => new Promise((res) => { let acc = ''; const to = setTimeout(() => res(acc || null), 120000)

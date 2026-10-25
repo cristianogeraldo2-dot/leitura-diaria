@@ -32,3 +32,7 @@ set "SUPABASE_SECRET_KEY="
 set "SUPABASE_BUCKET=jarvis-midia"
 set "SUPABASE_MEDIA_ACCESS=assinada"
 set "SUPABASE_MEDIA_TTL_HORAS=24"
+
+REM Facebook (Pagina). Valores so aqui, nunca no chat.
+set FB_PAGE_ID=
+set FB_PAGE_TOKEN=
