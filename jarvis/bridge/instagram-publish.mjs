@@ -32,8 +32,8 @@ async function graph(fetchFn, method, path, params = {}) {
 export async function verificarConexao(fetchFn = fetch) {
   if (!configurado()) return { configurado: false, comoConfigurar: 'Defina IG_ACCESS_TOKEN e IG_USER_ID em jarvis-secrets.cmd (ver INSTAGRAM.md).' }
   try {
-    const j = await graph(fetchFn, 'GET', `/${cred().uid}`, { fields: 'username,account_type' })
-    return { configurado: true, ok: true, usuario: j.username ?? null, tipoDeConta: j.account_type ?? null, contaOficial: String(j.username ?? '').toLowerCase() === contaEsperada(), contaEsperada: contaEsperada() }
+    const j = await graph(fetchFn, 'GET', `/${cred().uid}`, { fields: 'username' })
+    return { configurado: true, ok: true, usuario: j.username ?? null, contaOficial: String(j.username ?? '').toLowerCase() === contaEsperada(), contaEsperada: contaEsperada() }
   } catch (e) { return { configurado: true, ok: false, erro: String(e.message) } }
 }
 
