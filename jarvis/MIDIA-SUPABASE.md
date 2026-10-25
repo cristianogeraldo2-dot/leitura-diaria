@@ -7,12 +7,23 @@ A API da Meta exige que imagens e vídeos estejam em uma **URL https acessível*
 | Peça | Arquivo | Estado |
 |---|---|---|
 | Validação real de tipo (por bytes, não pela extensão), tamanho, dimensões; PNG para JPEG | `bridge/media-prep.mjs` | Testado com arquivos reais locais |
-| Envio, URL assinada, limpeza, validação de URL | `bridge/media-storage.mjs` | **Testado só com simulação** (sem chamada real ao Supabase) |
+| Envio, URL assinada, remoção, validação de URL | `bridge/media-storage.mjs` | Simulado **e validado de verdade** no Supabase da usuária (ver "Validação real"). `limpar` (listagem) ainda só simulado |
 | Comando de uso | `scripts/midia.mjs` (`npm run midia -- ...`) | Local testado; envio real **depende das suas credenciais** |
 | Detector de segredos | `scripts/scan-secrets.mjs` (`npm run scan:segredos`) | Testado |
 | Cópia JPEG ao lado do PNG nas artes | `imagem_produzir` | Testado |
 
-Não foi feito: nenhum upload real, nenhuma conta ou bucket criado, nenhuma chamada à Meta.
+Não foi feito: nenhuma chamada à Meta e nenhuma publicação. A publicação segue fora do escopo desta autorização.
+
+## Validação real (feita pela usuária no próprio computador)
+
+Com um bucket privado `jarvis-midia` e credenciais só no `jarvis-secrets.cmd`:
+
+1. `verificar`: configuração completa (sem exibir valores).
+2. `enviar` de um JPEG de teste: upload real OK e URL assinada gerada (token mascarado na tela).
+3. Verificação **sem credenciais** (como a Meta faria): status **206**, `image/jpeg`.
+4. `remover` do objeto de teste: `{"ok": true}`. Nada de teste ficou no bucket.
+
+**Ainda não validado:** aceitação da URL pela Meta (exige uma publicação de teste, não autorizada); listagem real do `limpar`; vídeos grandes; limite de tamanho por arquivo do plano; qual formato de chave (`sb_...` ou JWT) foi usado.
 
 ## Variáveis de ambiente (somente nomes)
 
@@ -67,12 +78,12 @@ O comando `enviar` termina com uma **verificação sem credenciais**: ele baixa 
 
 ## Custos e limites que ainda precisam ser confirmados
 
-- Cota de armazenamento e de tráfego do plano gratuito do Supabase.
+- Cotas vistas no painel do plano gratuito da usuária (conferir no painel, podem mudar): armazenamento de arquivos 1 GB, tráfego (egress) 5 GB, banco 500 MB.
 - Limite de tamanho por arquivo do plano (o código aceita até 300 MB; o plano pode aceitar menos).
 - Pausa de projetos gratuitos por inatividade.
 - Limites da Meta: proporção, tamanho, duração dos vídeos e quantidade de publicações por dia pela API.
-- Comportamento do cabeçalho de autenticação com chaves novas (`sb_...`) e legadas (JWT): o código usa `apikey` (e `Authorization` só nas chaves JWT). **Confirmar no primeiro envio real.**
-- Rotas usadas (upload, assinatura, listagem e remoção) seguem a documentação oficial da API de Storage, mas **só foram testadas por simulação**.
+- Comportamento do cabeçalho de autenticação com chaves novas (`sb_...`) e legadas (JWT): o código usa `apikey` (e `Authorization` só nas chaves JWT). Upload, assinatura, acesso e remoção funcionaram no envio real.
+- Rota de listagem (`limpar`) segue a documentação oficial, mas **só foi testada por simulação**.
 
 ## Etapa 0: segurança
 
