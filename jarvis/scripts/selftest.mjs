@@ -389,6 +389,39 @@ const wsOpen = (origin) => new Promise((res) => { const w = new WebSocket(`ws://
 const good = await wsOpen('http://localhost:5173'); t('frontend↔bridge: WebSocket aceita origem local', good.ok)
 const bad = await wsOpen('https://evil.example'); t('WebSocket recusa origem externa', !bad.ok)
 
+console.log('\n[etapa 2 — facebook + log, tudo simulado]')
+{
+  const { mkdtempSync, rmSync, readFileSync: rf } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join: jn } = await import('node:path')
+  const FB = await import('../bridge/facebook-publish.mjs')
+  const LG = await import('../bridge/publicacao-log.mjs')
+  const dir = mkdtempSync(jn(tmpdir(), 'jarvis-fb-')); const arq = jn(dir, 'log.jsonl')
+  const item = { id: 'x1', status: 'aprovado', legenda: 'Oi', midiaUrls: ['https://exemplo.com/a.jpg'] }
+  const semRede = () => { throw new Error('rede!') }
+  const TOK = 'EA' + 'A' + 'x'.repeat(24)
+  delete process.env.FB_PAGE_TOKEN; delete process.env.FB_PAGE_ID
+  t('FB sem credenciais simula e não chama a rede', (await FB.publicarNaPagina(item, { fetchFn: semRede, logArquivo: arq })).simulado === true)
+  let m = null; try { await FB.publicarNaPagina({ ...item, status: 'rascunho' }, { logArquivo: arq }) } catch (e) { m = e.message }
+  t('FB recusa rascunho não aprovado', /APROVADOS/.test(m ?? ''))
+  m = null; try { await FB.publicarNaPagina({ ...item, midiaUrls: ['http://x.com/a.jpg'] }, { logArquivo: arq }) } catch (e) { m = e.message }
+  t('FB recusa mídia sem https', /https/.test(m ?? ''))
+  process.env.FB_PAGE_TOKEN = TOK; process.env.FB_PAGE_ID = '123'
+  const chamadas = []
+  const fake = async (url) => { chamadas.push(String(url)); const ok = (b) => ({ ok: true, status: 200, json: async () => b }); return String(url).includes('/photos') ? ok({ id: 'p1', post_id: '123_9' }) : ok({ id: '123' }) }
+  const r1 = await FB.publicarNaPagina(item, { fetchFn: fake, logArquivo: arq })
+  t('FB publica foto (rede simulada) e devolve id', r1.idMidia === '123_9' && chamadas.some((c) => c.includes('/123/photos')))
+  const n = chamadas.length
+  const r2 = await FB.publicarNaPagina(item, { fetchFn: fake, logArquivo: arq })
+  t('FB é idempotente: segunda chamada não envia nada', r2.duplicado === true && chamadas.length === n)
+  const falha = async () => ({ ok: false, status: 400, json: async () => ({ error: { message: 'ruim ' + TOK } }) })
+  m = null; try { await FB.publicarNaPagina({ ...item, id: 'x2' }, { fetchFn: falha, logArquivo: arq }) } catch (e) { m = e.message }
+  t('FB falha sem vazar o token e registra no log', m && !m.includes(TOK) && LG.ler(arq).some((x) => x.id === 'x2' && x.resultado === 'falhou'))
+  t('log não contém o token', !rf(arq, 'utf8').includes(TOK))
+  delete process.env.FB_PAGE_TOKEN; delete process.env.FB_PAGE_ID
+  rmSync(dir, { recursive: true, force: true })
+}
+
 if (LIVE && good.ok) {
   console.log('\n[claude code — ao vivo]')
   const ask = (text) => new Promise((res) => { let acc = ''; const to = setTimeout(() => res(acc || null), 120000)
