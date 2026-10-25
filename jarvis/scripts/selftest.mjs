@@ -459,6 +459,28 @@ console.log('\n[etapa 2 — facebook + log, tudo simulado]')
   rmSync(d, { recursive: true, force: true })
 }
 
+{
+  const P = await import('../bridge/instagram-publish.mjs')
+  const TK = 'EA' + 'A' + 'q'.repeat(30)
+  process.env.IG_ACCESS_TOKEN = TK; process.env.IG_USER_ID = '77'; delete process.env.IG_EXPECTED_USERNAME
+  const chamadas = []
+  const gfetch = async (url) => { chamadas.push(String(url)); const ok = (b) => ({ ok: true, status: 200, json: async () => b }); const u = String(url); return u.includes('fields=username') ? ok({ username: 'cristianogeraldo.ofc' }) : u.includes('/media_publish') ? ok({ id: 'M1' }) : ok({ id: 'C1', status_code: 'FINISHED' }) }
+  const itens = { s1: { id: 's1', status: 'aprovado', tipo: 'story', midiaLocal: ['C:/x/a.jpg'], agendadoPara: '2026-10-18 12:00' }, s2: { id: 's2', status: 'aprovado', tipo: 'story', midiaLocal: ['C:/x/b.jpg'], agendadoPara: '2026-10-18 12:00' } }
+  const feitos = [], falhas = []
+  const store = { obter: (i) => itens[i], marcarPublicado: (i) => feitos.push(i), registrarFalha: (i) => falhas.push(i), listar: (st) => Object.values(itens).filter((x) => x.status === st) }
+  const removidos = []
+  const dub = { preparar: async () => ({ ok: true, mime: 'image/jpeg' }), enviar: async (p) => ({ ok: true, url: 'https://x.supabase.co/storage/v1/object/sign/b/a.jpg?token=t', caminho: 'b/a.jpg' }), remover: async (c) => { removidos.push(c); return { ok: true } }, fetchFn: gfetch }
+  t('autopost enxerga rascunho só com arquivo local', P.devidos(store, new Date('2026-10-18T16:00:00Z')).length === 2)
+  const r = await P.publicarLote(store, ['s1'], dub)
+  t('lote sobe o local, publica e marca publicado', r[0].ok && r[0].idMidia === 'M1' && feitos.includes('s1'))
+  t('mídia do Supabase é apagada após publicar', removidos.length === 1 && removidos[0] === 'b/a.jpg')
+  const r2 = await P.publicarLote(store, ['s2'], { ...dub, fetchFn: async () => ({ ok: false, status: 400, json: async () => ({ error: { message: 'ruim' } }) }) })
+  t('falha na Meta registra falha e ainda apaga a mídia', !r2[0].ok && falhas.includes('s2') && removidos.length === 2)
+  const r3 = await P.publicarLote(store, ['s2'], { ...dub, preparar: async () => ({ ok: false, problemas: ['arquivo ruim'] }) })
+  t('mídia inválida não chega à Meta', !r3[0].ok && /inválida/.test(r3[0].erro))
+  delete process.env.IG_ACCESS_TOKEN; delete process.env.IG_USER_ID
+}
+
 if (LIVE && good.ok) {
   console.log('\n[claude code — ao vivo]')
   const ask = (text) => new Promise((res) => { let acc = ''; const to = setTimeout(() => res(acc || null), 120000)

@@ -2,6 +2,8 @@ import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import { log, redact } from './home.mjs'
 import { createStore } from './instagram.mjs'
+import { prepararMidia, enviarMidia, removerMidia } from './media-storage.mjs'
+import { registrar } from './publicacao-log.mjs'
 
 /**
  * Publicação no Instagram pela API OFICIAL (Instagram Graph API). Sem navegador, sem senha.
@@ -92,15 +94,42 @@ export async function publicarRascunho(item, { fetchFn = fetch, dormir } = {}) {
   return { simulado: false, tipo: item.tipo, idMidia: pub.id }
 }
 
-/** Publica vários rascunhos APROVADOS em sequência; um erro não derruba os demais. Máximo de 10 por vez. */
+/** Arquivos locais do rascunho (mídia que ainda não está em URL): midiaLocal[] ou, no Reel, videoLocal. */
+export const locaisDe = (x) => (Array.isArray(x?.midiaLocal) && x.midiaLocal.length ? x.midiaLocal : x?.tipo === 'reel' && x?.videoLocal ? [x.videoLocal] : [])
+
+/**
+ * Publica vários rascunhos APROVADOS em sequência; um erro não derruba os demais. Máximo de 10 por vez.
+ * Se o rascunho só tem arquivos locais, sobe cada um ao Supabase IMEDIATAMENTE antes de publicar
+ * (URL assinada recém-criada) e apaga do Supabase logo depois, com sucesso ou erro.
+ */
 export async function publicarLote(store, ids, opts = {}) {
+  const { preparar = prepararMidia, enviar = enviarMidia, remover = removerMidia } = opts
   const out = []
   for (const id of [...new Set(ids)].slice(0, 10)) {
+    const subidos = []
     try {
-      const r = await publicarRascunho(store.obter(id), opts)
+      let item = store.obter(id)
+      if (item && !(item.midiaUrls ?? []).length && locaisDe(item).length) {
+        for (const arq of locaisDe(item)) {
+          const prep = await preparar(arq, { formato: item.tipo === 'story' ? 'story' : 'feed' })
+          if (!prep.ok) throw new Error(`Mídia inválida: ${(prep.problemas ?? [prep.codigo]).join('; ')}`)
+          const up = await enviar(prep)
+          if (!up.ok) throw new Error(`Envio da mídia falhou (${up.codigo ?? 'erro'})`)
+          subidos.push(up)
+        }
+        item = { ...item, midiaUrls: subidos.map((u) => u.url) }
+      }
+      const r = await publicarRascunho(item, opts)
       if (!r.simulado) store.marcarPublicado(id, r)
+      try { registrar({ canal: 'instagram', id, resultado: r.simulado ? 'simulado' : 'publicado', detalhe: r.idMidia ?? '' }) } catch { /* log é auxiliar */ }
       out.push({ id, ok: true, simulado: r.simulado, idMidia: r.idMidia ?? null })
-    } catch (e) { store.registrarFalha(id, e.message ?? e); out.push({ id, ok: false, erro: String(e.message ?? e) }) }
+    } catch (e) {
+      store.registrarFalha(id, e.message ?? e)
+      try { registrar({ canal: 'instagram', id, resultado: 'falhou', detalhe: e.message }) } catch { /* log é auxiliar */ }
+      out.push({ id, ok: false, erro: String(e.message ?? e) })
+    } finally {
+      for (const u of subidos) { try { await remover(u.caminho) } catch { /* limpeza best effort */ } }
+    }
   }
   return out
 }
@@ -119,7 +148,7 @@ export const horario = (v) => {
 export function devidos(store, agora = new Date()) {
   return store.listar('aprovado').filter((x) => {
     const t = horario(x.agendadoPara)
-    return Number.isFinite(t) && t <= agora.getTime() && agora.getTime() - t <= JANELA_MS && (x.falhas ?? 0) < MAX_FALHAS && (x.midiaUrls ?? []).length && x.midiaUrls.every(https)
+    return Number.isFinite(t) && t <= agora.getTime() && agora.getTime() - t <= JANELA_MS && (x.falhas ?? 0) < MAX_FALHAS && ((x.midiaUrls ?? []).length ? x.midiaUrls.every(https) : locaisDe(x).length > 0)
   }).sort((a, b) => horario(a.agendadoPara) - horario(b.agendadoPara))
 }
 /** Nunca simula, respeita o limite diário e o arquivo config/PARAR-INSTAGRAM. A conta oficial é conferida em cada envio. */
