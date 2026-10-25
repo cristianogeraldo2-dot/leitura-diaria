@@ -36,3 +36,7 @@ set "SUPABASE_MEDIA_TTL_HORAS=24"
 REM Facebook (Pagina). Valores so aqui, nunca no chat.
 set FB_PAGE_ID=
 set FB_PAGE_TOKEN=
+
+REM Troca de token (Meta > app > Configuracoes > Basico). Valores so aqui.
+set "FB_APP_ID="
+set "FB_APP_SECRET="

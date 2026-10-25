@@ -442,6 +442,23 @@ console.log('\n[etapa 2 — facebook + log, tudo simulado]')
   rmSync(dir, { recursive: true, force: true })
 }
 
+{
+  const { trocarToken, gravarToken } = await import('../bridge/instagram-token.mjs')
+  const { mkdtempSync, rmSync, writeFileSync: wf, readFileSync: rf } = await import('node:fs'); const { tmpdir } = await import('node:os'); const { join: jn } = await import('node:path')
+  const CURTO = 'EA' + 'A' + 'c'.repeat(30), SEG = 'seg' + 'z'.repeat(20), LONGO = 'EA' + 'A' + 'l'.repeat(30)
+  t('troca de token avisa o que falta', (await trocarToken({ env: {} })).erro.includes('FB_APP_SECRET'))
+  const okF = async (u) => ({ ok: true, status: 200, json: async () => ({ access_token: LONGO, expires_in: 5184000 }) })
+  const r = await trocarToken({ env: { IG_ACCESS_TOKEN: CURTO, FB_APP_ID: '1', FB_APP_SECRET: SEG }, fetchFn: okF })
+  t('troca devolve token longo (~60 dias)', r.ok && r.token === LONGO && r.expiraEmDias === 60)
+  const ruim = async () => ({ ok: false, status: 400, json: async () => ({ error: { message: 'x ' + CURTO + ' ' + SEG } }) })
+  const e = await trocarToken({ env: { IG_ACCESS_TOKEN: CURTO, FB_APP_ID: '1', FB_APP_SECRET: SEG }, fetchFn: ruim })
+  t('erro da troca não vaza token nem chave', !e.ok && !e.erro.includes(CURTO) && !e.erro.includes(SEG))
+  const d = mkdtempSync(jn(tmpdir(), 'jarvis-tk-')); const f = jn(d, 's.cmd')
+  wf(f, 'set A=1\r\nset "IG_ACCESS_TOKEN="\r\nset B=2\r\n'); gravarToken(f, LONGO)
+  const c = rf(f, 'utf8'); t('gravarToken troca só a linha do token', c.includes('set A=1') && c.includes('set B=2') && c.includes(`IG_ACCESS_TOKEN=${LONGO}`) && !c.includes('IG_ACCESS_TOKEN="'))
+  rmSync(d, { recursive: true, force: true })
+}
+
 if (LIVE && good.ok) {
   console.log('\n[claude code — ao vivo]')
   const ask = (text) => new Promise((res) => { let acc = ''; const to = setTimeout(() => res(acc || null), 120000)
