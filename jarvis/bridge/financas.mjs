@@ -6,7 +6,7 @@ import { redact } from './home.mjs'
  * Credenciais só por ambiente (jarvis-secrets.cmd): FIN_SUPABASE_URL, FIN_SUPABASE_KEY (chave pública do app),
  * FIN_EMAIL, FIN_PASSWORD. Nunca testado contra o Supabase real: só com respostas simuladas.
  */
-export const TABELAS = ['accounts', 'transactions', 'categories', 'alerts', 'pluggy_items']
+export const TABELAS = ['accounts', 'transactions', 'categories', 'alerts', 'pluggy_items', 'v_transactions_normalized']
 const VARS = ['FIN_SUPABASE_URL', 'FIN_SUPABASE_KEY', 'FIN_EMAIL', 'FIN_PASSWORD']
 
 export const configFin = (env = process.env) => {
@@ -43,8 +43,9 @@ const soma = (a, k) => a.reduce((s, x) => s + (Number(x[k]) || 0), 0)
 const mesIni = (d, off = 0) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + off, 1)).toISOString().slice(0, 10)
 
 /**
- * Resumo: saldo das contas ativas, movimento do mês e dos 3 meses anteriores por categoria, avisos e sincronização.
- * Sinal confirmado (25/10/2026) no código do app e em 2.721 lançamentos: saída = negativo (type debit), entrada = positivo (type credit).
+ * Resumo a partir de v_transactions_normalized (25/10/2026): o significado do sinal já vem resolvido por tipo de conta
+ * (conta corrente: negativo = saída; cartão: positivo = compra, negativo = pagamento de fatura ou estorno).
+ * Gasto = despesas − estornos; pagamento de fatura, transferência entre contas e investimento ficam fora; previstos (data futura) ficam à parte.
  */
 export async function resumoFinanceiro({ env = process.env, fetchFn = fetch, agora = new Date() } = {}) {
   const cfg = configFin(env)
@@ -53,28 +54,32 @@ export async function resumoFinanceiro({ env = process.env, fetchFn = fetch, ago
     const token = await entrar(cfg, fetchFn)
     const q = (t, s) => consultar(cfg, token, t, s, fetchFn)
     const ini = mesIni(agora), prox = mesIni(agora, 1), ini3 = mesIni(agora, -3)
-    const [contas, mes, ant, cats, avisos, sinc] = await Promise.all([
+    const campos = 'select=valor,natureza,categoria,data_transacao&realizada=eq.true&natureza=in.(despesa,estorno,receita)'
+    const [contas, mes, ant, prev, sinc] = await Promise.all([
       q('accounts', 'select=balance,account_type,is_active,name,institution_label&is_active=eq.true'),
-      q('transactions', `select=amount,category_id,date&date=gte.${ini}&date=lt.${prox}`),
-      q('transactions', `select=amount,category_id,date&date=gte.${ini3}&date=lt.${ini}`),
-      q('categories', 'select=id,name'),
-      q('alerts', 'select=id,type,severity,title,message,created_at&dismissed_at=is.null&order=created_at.desc&limit=8'),
+      q('v_transactions_normalized', `${campos}&data_transacao=gte.${ini}&data_transacao=lt.${prox}`),
+      q('v_transactions_normalized', `${campos}&data_transacao=gte.${ini3}&data_transacao=lt.${ini}`),
+      q('v_transactions_normalized', 'select=valor,natureza,data_transacao&prevista=eq.true&order=data_transacao.asc'),
       q('pluggy_items', 'select=connector_name,institution_label,last_synced_at,status&order=last_synced_at.desc'),
     ])
-    const nome = new Map(cats.map((c) => [c.id, c.name]))
-    const porCat = (lista) => {
-      const m = new Map()
-      for (const t of lista) { const n = nome.get(t.category_id) ?? 'Sem categoria'; m.set(n, (m.get(n) ?? 0) + (Number(t.amount) || 0)) }
-      return [...m].map(([categoria, total]) => ({ categoria, total })).sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
+    const resumir = (l) => {
+      const porCat = new Map()
+      let despesas = 0, estornos = 0, receitas = 0
+      for (const t of l) {
+        const v = Number(t.valor) || 0
+        if (t.natureza === 'despesa') { despesas += v; const n = t.categoria ?? 'Sem categoria'; porCat.set(n, (porCat.get(n) ?? 0) + v) }
+        else if (t.natureza === 'estorno') { estornos += v; const n = t.categoria ?? 'Sem categoria'; porCat.set(n, (porCat.get(n) ?? 0) - v) }
+        else if (t.natureza === 'receita') receitas += v
+      }
+      return { lancamentos: l.length, despesas, estornos, gastoLiquido: despesas - estornos, receitas, porCategoria: [...porCat].map(([categoria, total]) => ({ categoria, total })).sort((a, b) => b.total - a.total) }
     }
-    const pos = (l) => soma(l.filter((t) => Number(t.amount) > 0), 'amount'), neg = (l) => soma(l.filter((t) => Number(t.amount) < 0), 'amount')
     return {
       conectado: true, geradoEm: agora.toISOString(),
-      saldoContas: { total: soma(contas, 'balance'), contas: contas.length, porTipo: Object.fromEntries([...new Set(contas.map((c) => c.account_type))].map((t) => [t, soma(contas.filter((c) => c.account_type === t), 'balance')])) },
-      mesAtual: { lancamentos: mes.length, valoresPositivos: pos(mes), valoresNegativos: neg(mes), porCategoria: porCat(mes) },
-      tresMesesAnteriores: { lancamentos: ant.length, valoresPositivos: pos(ant), valoresNegativos: neg(ant), porCategoria: porCat(ant) },
-      avisosAbertos: avisos, sincronizacao: sinc,
-      convencaoDoSinal: 'confirmada no app e nos dados: saida = valor negativo (type debit), entrada = positivo (type credit)',
+      saldoContas: { contas: contas.length, porTipo: Object.fromEntries([...new Set(contas.map((c) => c.account_type))].map((t) => [t, soma(contas.filter((c) => c.account_type === t), 'balance')])), observacao: 'No cartão, balance é a dívida total. Não some conta corrente com cartão.' },
+      mesAtual: resumir(mes), tresMesesAnteriores: resumir(ant),
+      previstos: { lancamentos: prev.length, total: soma(prev, 'valor') },
+      sincronizacao: sinc,
+      convencaoDoSinal: 'conta corrente: negativo = saida; cartao: positivo = compra, negativo = pagamento de fatura ou estorno (resolvido em v_transactions_normalized)',
     }
   } catch (e) { return { conectado: false, motivo: 'erro', erro: limpar(e.message ?? e, cfg) } }
 }
