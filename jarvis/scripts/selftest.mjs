@@ -496,7 +496,7 @@ console.log('\n[etapa 2 — facebook + log, tudo simulado]')
     if (u.includes('/pluggy_items')) return ok([{ connector_name: 'Banco', status: 'UPDATED' }])
     return ok([{ amount: -30, category_id: 1, date: '2026-10-02' }, { amount: 200, category_id: null, date: '2026-10-03' }]) }
   const r = await FIN.resumoFinanceiro({ env, fetchFn: fake, agora: new Date('2026-10-25T12:00:00Z') })
-  t('finanças: resumo calcula saldo, entradas e saídas sem presumir o sinal', r.conectado && r.saldoContas.total === 150.5 && r.mesAtual.valoresNegativos === -30 && r.mesAtual.valoresPositivos === 200 && /confirmar/.test(r.convencaoDoSinal))
+  t('finanças: resumo calcula saldo, entradas e saídas e confirma a convenção do sinal', r.conectado && r.saldoContas.total === 150.5 && r.mesAtual.valoresNegativos === -30 && r.mesAtual.valoresPositivos === 200 && /saida = valor negativo/.test(r.convencaoDoSinal))
   t('finanças: só GET nas consultas (POST apenas no login)', metodos.filter((m) => m !== 'GET').length === 1 && urls.filter((u) => !u.includes('/auth/v1/')).every((u, i) => metodos[urls.indexOf(u)] === 'GET'))
   t('finanças: recusa tabela fora da lista', await FIN.consultar({ url: 'https://x', key: 'k' }, 't', 'users', '', fake).then(() => false, (e) => /não permitida/.test(e.message)))
   const ruim = async () => ({ ok: false, status: 400, json: async () => ({ error_description: 'bad ' + S + ' ' + K }) })

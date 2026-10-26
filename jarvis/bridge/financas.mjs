@@ -44,7 +44,7 @@ const mesIni = (d, off = 0) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMon
 
 /**
  * Resumo: saldo das contas ativas, movimento do mês e dos 3 meses anteriores por categoria, avisos e sincronização.
- * O sinal dos valores de `transactions` NÃO é presumido: devolve entradas e saídas pelo sinal e marca a convenção como a confirmar.
+ * Sinal confirmado (25/10/2026) no código do app e em 2.721 lançamentos: saída = negativo (type debit), entrada = positivo (type credit).
  */
 export async function resumoFinanceiro({ env = process.env, fetchFn = fetch, agora = new Date() } = {}) {
   const cfg = configFin(env)
@@ -74,7 +74,7 @@ export async function resumoFinanceiro({ env = process.env, fetchFn = fetch, ago
       mesAtual: { lancamentos: mes.length, valoresPositivos: pos(mes), valoresNegativos: neg(mes), porCategoria: porCat(mes) },
       tresMesesAnteriores: { lancamentos: ant.length, valoresPositivos: pos(ant), valoresNegativos: neg(ant), porCategoria: porCat(ant) },
       avisosAbertos: avisos, sincronizacao: sinc,
-      convencaoDoSinal: 'a confirmar: nao presumo se saida e positiva ou negativa',
+      convencaoDoSinal: 'confirmada no app e nos dados: saida = valor negativo (type debit), entrada = positivo (type credit)',
     }
   } catch (e) { return { conectado: false, motivo: 'erro', erro: limpar(e.message ?? e, cfg) } }
 }
