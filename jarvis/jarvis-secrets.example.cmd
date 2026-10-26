@@ -40,3 +40,9 @@ set FB_PAGE_TOKEN=
 REM Troca de token (Meta > app > Configuracoes > Basico). Valores so aqui.
 set "FB_APP_ID="
 set "FB_APP_SECRET="
+
+REM Financas (app Leitura Diaria do Lider). Somente leitura. Valores so aqui.
+set "FIN_SUPABASE_URL="
+set "FIN_SUPABASE_KEY="
+set "FIN_EMAIL="
+set "FIN_PASSWORD="

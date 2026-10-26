@@ -481,6 +481,29 @@ console.log('\n[etapa 2 — facebook + log, tudo simulado]')
   delete process.env.IG_ACCESS_TOKEN; delete process.env.IG_USER_ID
 }
 
+{
+  const FIN = await import('../bridge/financas.mjs')
+  const S = 'senha-' + 'z'.repeat(12), K = 'chavepublica' + 'k'.repeat(10)
+  const env = { FIN_SUPABASE_URL: 'https://x.supabase.co/', FIN_SUPABASE_KEY: K, FIN_EMAIL: 'a@b.com', FIN_PASSWORD: S }
+  const semCred = await FIN.resumoFinanceiro({ env: {}, fetchFn: () => { throw new Error('rede!') } })
+  t('finanças sem credenciais lista o que falta e não usa a rede', semCred.conectado === false && semCred.faltando.length === 4)
+  const metodos = [], urls = []
+  const fake = async (url, o) => { metodos.push(o?.method); urls.push(String(url)); const ok = (b) => ({ ok: true, status: 200, json: async () => b }); const u = String(url)
+    if (u.includes('/auth/v1/token')) return ok({ access_token: 'tok' })
+    if (u.includes('/accounts')) return ok([{ balance: 100, account_type: 'BANK', is_active: true }, { balance: 50.5, account_type: 'CREDIT', is_active: true }])
+    if (u.includes('/categories')) return ok([{ id: 1, name: 'Mercado' }])
+    if (u.includes('/alerts')) return ok([])
+    if (u.includes('/pluggy_items')) return ok([{ connector_name: 'Banco', status: 'UPDATED' }])
+    return ok([{ amount: -30, category_id: 1, date: '2026-10-02' }, { amount: 200, category_id: null, date: '2026-10-03' }]) }
+  const r = await FIN.resumoFinanceiro({ env, fetchFn: fake, agora: new Date('2026-10-25T12:00:00Z') })
+  t('finanças: resumo calcula saldo, entradas e saídas sem presumir o sinal', r.conectado && r.saldoContas.total === 150.5 && r.mesAtual.valoresNegativos === -30 && r.mesAtual.valoresPositivos === 200 && /confirmar/.test(r.convencaoDoSinal))
+  t('finanças: só GET nas consultas (POST apenas no login)', metodos.filter((m) => m !== 'GET').length === 1 && urls.filter((u) => !u.includes('/auth/v1/')).every((u, i) => metodos[urls.indexOf(u)] === 'GET'))
+  t('finanças: recusa tabela fora da lista', await FIN.consultar({ url: 'https://x', key: 'k' }, 't', 'users', '', fake).then(() => false, (e) => /não permitida/.test(e.message)))
+  const ruim = async () => ({ ok: false, status: 400, json: async () => ({ error_description: 'bad ' + S + ' ' + K }) })
+  const e = await FIN.resumoFinanceiro({ env, fetchFn: ruim })
+  t('finanças: erro de login não vaza senha nem chave', e.conectado === false && !JSON.stringify(e).includes(S) && !JSON.stringify(e).includes(K))
+}
+
 if (LIVE && good.ok) {
   console.log('\n[claude code — ao vivo]')
   const ask = (text) => new Promise((res) => { let acc = ''; const to = setTimeout(() => res(acc || null), 120000)

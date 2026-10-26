@@ -30,6 +30,7 @@ import { renderPage } from './page.mjs'
 import { socialServer, rodarAgendador } from './instagram-publish.mjs'
 import { rodarAgendadorFacebook } from './facebook-publish.mjs'
 import { createStore as igStore } from './instagram.mjs'
+import { resumoFinanceiro } from './financas.mjs'
 import { painel as marketingPainel } from './marketing.mjs'
 import { opsServer, operationInsight, findDashboard, backupDashboard, diagnostics, statusSummary } from './ops.mjs'
 import { PERSONA_PT, detectMode, setMode, getMode, modeTag, isConfirmation, confirmPending, notePending, noteAwaiting, consumeGrant } from './persona.mjs'
@@ -751,6 +752,10 @@ const handleRequest = async (req, res) => {
   if (req.method === 'GET' && req.url === '/jarvis/marketing') {
     res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
     return res.end(JSON.stringify(marketingPainel()))
+  }
+  if (req.method === 'GET' && req.url === '/jarvis/financas') {
+    res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
+    return res.end(JSON.stringify(await resumoFinanceiro()))
   }
   if (req.method === 'GET' && req.url === '/jarvis/diagnostics') {
     res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8' })
